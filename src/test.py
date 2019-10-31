@@ -1,4 +1,3 @@
-from read_data import read_data
 from scipy.io import loadmat
 import h5py
 import numpy as np
