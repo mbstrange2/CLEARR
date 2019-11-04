@@ -83,11 +83,10 @@ def train():
     comp_arr = np.load(comp_array_path)
     
     n_x = len(raw_arr[:,0])
-    #print(n_x)
     n_y = n_x
 
-    raw_arr_norm = tf.keras.utils.normalize(raw_arr, axis=0)
-    comp_arr_norm = comp_arr
+    raw_arr_norm = tf.keras.utils.normalize(raw_arr, axis=1)
+    comp_arr_norm = comp_arr / 255
 
     raw_arr_norm = raw_arr_norm.T
     comp_arr_norm = comp_arr_norm.T
@@ -109,7 +108,7 @@ def train():
 
     model = model_create(n_x)
 
-    use_chk = False
+    use_chk = True
 
     checkpoint_filepath = "./model_chk.hdf5"
     training = False
@@ -122,7 +121,7 @@ def train():
         training = True
 
 #    model.compile(optimizer=keras.optimizers.RMSprop(),  # Optimizer
-    model.compile(optimizer=keras.optimizers.Adam(),  # Optimizer
+    model.compile(optimizer=keras.optimizers.RMSprop(),  # Optimizer
         # Loss function to minimize
         loss=keras.losses.MeanSquaredError(),
         # List of metrics to monitor
@@ -140,27 +139,27 @@ def train():
                     validation_data=(comp_dev, raw_dev),
                     callbacks=callbacks_list)
 
-
-
     plot = True
 
     if plot is True:
-        comp_5 = comp_train[5]
-        comp5_re = np.reshape(comp_train[5], (1, 71))
-        predict_5 = model.predict(comp5_re)
-        predict_5 = predict_5.reshape((71,1))
-        print(predict_5)
-        actual_5 = raw_train[5]
-        plt.figure(1)
+        which_num = 75
+        comp_re = np.reshape(comp_train[which_num], (1, 71))
+        predicted = model.predict(comp_re)
+        predicted = predicted.reshape((71,1))
+        actual = raw_train[which_num]
+        plt.figure()
         plt.title('Compressed...')
-        plt.plot(comp_5)
-        plt.figure(2)
+        plt.plot(comp_train[which_num])
+        plt.savefig(f"../img/compressed_{which_num}.png")
+        plt.figure()
         plt.title('Recon...')
-        plt.plot(predict_5)
-        plt.figure(3)
+        plt.plot(predicted)
+        plt.savefig(f"../img/reconstructed_{which_num}.png")
+        plt.figure()
         plt.title('Raw...')
-        plt.plot(actual_5)
-        plt.show()
+        plt.plot(actual)
+        plt.savefig(f"../img/actual_{which_num}.png")
+        #plt.show()
 
 if __name__=="__main__":
     train()
