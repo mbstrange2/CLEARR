@@ -12,42 +12,77 @@ import scipy.signal as sig
 import matplotlib.pyplot as plt
 import tensorflow as tf
 
-def train():
-
-    raw_path = "/Users/max/Documents/CS230/data/raw/"
-    comp_path = "/Users/max/Documents/CS230/data/compressed/"
-
-    #labels = loadmat("/home/ubuntu/analysis/2013-05-28-4/data000/data000_celltypes.mat")
-    # Get the actual data arrays
-    #labels_array = labels['celltypes']
-#	print(labels_array.shape)
-    #labels_array_reshaped = labels_array.reshape((557, 1))
-    #labels_array = labels_array_reshaped[0:512]
-#	print(labels_array)
-    #label_np = np.array(labels_array)
-    # Locate dataset
-    #data_files = listdir("/home/ubuntu/data/2013-05-28-4/mat/")
-
+def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_path):
     raw_files = listdir(raw_path)
     comp_files = listdir(comp_path)
     # Put the spikes and electrode number in here...
-    raw_list = []
-    comp_list = []
+    raw_dict = {}
+    comp_dict = {}
     
     for f in raw_files:
         electrode_num = None
         if f.endswith('.mat') and f.split("_")[3] == "spike":
-            print("Processing " + str(f))
+            f = f.split(".")[0] # Get rid of file extension
+            #print("Processing " + str(f))
             temp_inputs = loadmat(raw_path + str(f))
             electrode_num = int(f.split("_")[2])
+            spike_num = int(f.split("_")[4])
             input_arr = temp_inputs['temp']
-            #print(input_arr.shape)
-            #print(electrode_num)
-            raw_list.append(input_arr.squeeze()) #, label_np[electrode_num-1][0][0]))
+            if electrode_num not in ignore_list:
+                raw_dict[(electrode_num, spike_num)] = input_arr.squeeze()
 
-    items_np = np.array(raw_list)
-    print(items_np[0])
-    print(items_np[0].shape)
+    for f in comp_files:
+        electrode_num = None
+        if f.endswith('.mat') and f.split("_")[3] == "spike":
+            f = f.split(".")[0] # Get rid of file extension
+            #print("Processing " + str(f))
+            temp_inputs = loadmat(comp_path + str(f))
+            electrode_num = int(f.split("_")[2])
+            spike_num = int(f.split("_")[4])
+            input_arr = temp_inputs['temp']
+            if electrode_num not in ignore_list:
+                comp_dict[(electrode_num, spike_num)] = input_arr.squeeze()
+
+    num_examples = len(raw_dict.keys())
+    length_example = len(raw_dict[(1,1)])
+
+    raw_arr = np.zeros((length_example, num_examples))
+    comp_arr = np.zeros((length_example, num_examples))
+
+    i = 0
+    for (elec_num, spike_num) in raw_dict.keys():
+        #print("Electrode: " + str(elec_num) + "\tSpike: " + str(spike_num))
+        if (elec_num, spike_num) not in comp_dict.keys():
+            print("FAILURE...not in comp_dict")
+            break
+        raw_arr[:,i] = raw_dict[(elec_num, spike_num)]
+        comp_arr[:,i] = comp_dict[(elec_num, spike_num)]
+        i += 1
+
+    np.save(raw_array_path, raw_arr)
+    np.save(comp_array_path, comp_arr)
+
+def train():
+
+    raw_path = "/Users/max/Documents/CS230/data/raw/" # Change this for yourself
+    comp_path = "/Users/max/Documents/CS230/data/compressed/" # Change this for yourself
+    ignore_list = [45, 49, 177, 401, 418, 460]
+
+    raw_array_path = "./raw_array.npy"
+    comp_array_path = "./comp_array.npy"
+
+    if not os.path.exists(raw_array_path) or not os.path.exists(comp_array_path):
+        print("np files don't exist, creating now...")
+        reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_path)
+    else:
+        print("NP array files already exist, proceeding as usual...")
+
+    raw_arr = np.load(raw_array_path)
+    comp_arr = np.load(comp_array_path)
+    print("Raw dimensions")
+    print(raw_arr.shape)
+    print(raw_arr[0])
+    print(raw_arr[0].shape)
 
     # Now we can modify these arrays to be in the form we need
     # plt.figure(figsize=(20, 18))
