@@ -144,13 +144,18 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
         print("Training model...")
         training = True
 
-    model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001),  # Optimizer
+    initial_learning_rate = 0.1
+    lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate,
+        decay_steps=100000,
+        decay_rate=0.96,
+        staircase=True)
+
+    model.compile(optimizer=keras.optimizers.Adam(learning_rate=lr_schedule),  # Optimizer
     #model.compile(optimizer=keras.optimizers.Adam(),  # Optimizer
         # Loss function to minimize
-        #loss=keras.losses.MeanAbsoluteError(),
         loss=keras.losses.MeanSquaredError(),
         # List of metrics to monitor
-        #metrics=[keras.metrics.MeanAbsoluteError()])
         metrics=[keras.metrics.MeanSquaredError()])
 
     if training is True:
@@ -192,7 +197,7 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
 if __name__=="__main__":
     train(
         remake=False,
-        use_chk=True, 
+        use_chk=False, 
         plot=True, 
         show=True,
         save=False,
