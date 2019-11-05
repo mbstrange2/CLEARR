@@ -101,8 +101,10 @@ def train(use_chk=False, plot=False, show=False, save=False, plot_idx=0):
     def model_create(example_length):
         inputs = keras.Input(shape=(example_length,), name="in")
         x = layers.Dense(1500, activation="relu", name="dense_1")(inputs)
+        x = layers.BatchNormalization(name="batch_norm_1")(x)
         x = layers.Dense(1500, activation="relu", name="dense_2")(x)
         x = layers.Dense(1500, activation="relu", name="dense_3")(x)
+        x = layers.BatchNormalization(name="batch_norm_2")(x)
         x = layers.Dense(1500, activation="relu", name="dense_4")(x)
         x = layers.Dense(1500, activation="relu", name="dense_5")(x)
         #outputs = layers.Dense(example_length, activation="tanh", name="out")(x)
@@ -124,16 +126,18 @@ def train(use_chk=False, plot=False, show=False, save=False, plot_idx=0):
 #    model.compile(optimizer=keras.optimizers.RMSprop(),  # Optimizer
     model.compile(optimizer=keras.optimizers.Adam(),  # Optimizer
         # Loss function to minimize
+        #loss=keras.losses.MeanAbsoluteError(),
         loss=keras.losses.MeanSquaredError(),
         # List of metrics to monitor
+        #metrics=[keras.metrics.MeanAbsoluteError()])
         metrics=[keras.metrics.MeanSquaredError()])
 
     if training is True:
-        checkpoint = keras.callbacks.ModelCheckpoint(checkpoint_filepath, monitor='loss', verbose=1, save_best_only=True, mode='max')
+        checkpoint = keras.callbacks.ModelCheckpoint(checkpoint_filepath, monitor='loss', verbose=0, save_best_only=True, mode='min')
         callbacks_list = [checkpoint]
         history = model.fit(comp_train, raw_train,
                     batch_size=64,
-                    epochs=20,
+                    epochs=100,
                     # We pass some validation for
                     # monitoring validation loss and metrics
                     # at the end of each epoch
@@ -170,4 +174,13 @@ if __name__=="__main__":
         plot=True, 
         show=True,
         save=False,
-        plot_idx=75)
+        plot_idx=24)
+
+
+# if __name__=="__main__":
+#     train(
+#         use_chk=False, 
+#         plot=True, 
+#         show=True,
+#         save=False,
+#         plot_idx=75)
