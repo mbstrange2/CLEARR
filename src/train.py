@@ -23,7 +23,6 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
     
     for f in raw_files:
         electrode_num = None
-        #if f.endswith('.mat') and f.split("_")[3] == "spike":
         if f.endswith('.mat'):
             f = f.split(".")[0] # Get rid of file extension
             #print("Processing " + str(f))
@@ -37,7 +36,6 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
 
     for f in comp_files:
         electrode_num = None
-      #  if f.endswith('.mat') and f.split("_")[3] == "spike":
         if f.endswith('.mat'):
             f = f.split(".")[0] # Get rid of file extension
             #print("Processing " + str(f))
