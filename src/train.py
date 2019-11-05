@@ -49,7 +49,6 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
             if electrode_num not in ignore_list:
                 comp_dict[(electrode_num, spike_num, spikedness)] = input_arr.squeeze()
 
-
     num_examples = len(raw_dict.keys())
 
     print("Number of examples: " + str(num_examples))
@@ -73,15 +72,13 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
     np.save(raw_array_path, raw_arr)
     np.save(comp_array_path, comp_arr)
 
-def train(use_chk=False, plot=False, show=False, save=False, plot_idx=0):
+def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_idx=0):
     raw_path = "/Users/max/Documents/CS230/data/raw/" # Change this for yourself
     comp_path = "/Users/max/Documents/CS230/data/compressed/" # Change this for yourself
     ignore_list = [45, 49, 177, 401, 418, 460]
 
     raw_array_path = "./raw_array.npy"
     comp_array_path = "./comp_array.npy"
-
-    remake = True
 
     if not os.path.exists(raw_array_path) or not os.path.exists(comp_array_path) or remake is True:
         print("np files don't exist, creating now...")
@@ -103,31 +100,32 @@ def train(use_chk=False, plot=False, show=False, save=False, plot_idx=0):
     raw_arr_norm = raw_arr_norm.T
     comp_arr_norm = comp_arr_norm.T
 
-    # raw_arr_norm = raw_arr_norm[:, :, None]
-    # #print(raw_arr_norm.shape)
-    # comp_arr_norm = comp_arr_norm[ :, :, None ]
-
     raw_arr_norm_backup = raw_arr_norm
     comp_arr_norm_backup = comp_arr_norm
 
     raw_arr_norm = raw_arr_norm[:, None, :]
     comp_arr_norm = comp_arr_norm[:, None, :]
 
-    raw_train = tf.dtypes.cast(raw_arr_norm[0:12000], tf.float32)
-    raw_dev = tf.dtypes.cast(raw_arr_norm[12000:], tf.float32)
-    comp_train = tf.dtypes.cast(comp_arr_norm[0:12000], tf.float32)
-    comp_dev = tf.dtypes.cast(comp_arr_norm[12000:], tf.float32)
+    comp_train = comp_arr_norm
+    raw_train = raw_arr_norm
+   # raw_train = tf.dtypes.cast(raw_arr_norm[0:12000], tf.float32)
+   # raw_dev = tf.dtypes.cast(raw_arr_norm[12000:], tf.float32)
+   # comp_train = tf.dtypes.cast(comp_arr_norm[0:12000], tf.float32)
+   # comp_dev = tf.dtypes.cast(comp_arr_norm[12000:], tf.float32)
 
     def model_create(example_length):
         inputs = keras.Input(shape=(1, example_length, ), name="in")
-        x = layers.Conv1D(filters=10, kernel_size=5, strides=1, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
+        #x = layers.Dense(1500, activation="relu", name="dense_1")(inputs)
+        x = layers.Conv1D(filters=50, kernel_size=3, strides=1, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
+     #   x = layers.Conv1D(filters=50, kernel_size=5, strides=2, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(x)
       #  x = layers.Dense(1000, activation="relu", name="dense_1")(inputs)
       #  x = layers.BatchNormalization(name="batch_norm_1")(x)
-        x = layers.Dense(1500, activation="relu", name="dense_2")(x)
-        x = layers.Dense(1500, activation="relu", name="dense_3")(x)
+        x = layers.Dense(1250, activation="relu", name="dense_2")(x)
         x = layers.BatchNormalization(name="batch_norm_1")(x)
-        x = layers.Dense(1500, activation="relu", name="dense_4")(x)
-        x = layers.Dense(1500, activation="relu", name="dense_5")(x)
+        x = layers.Dense(1250, activation="relu", name="dense_3")(x)
+        x = layers.Dense(1250, activation="relu", name="dense_4")(x)
+        x = layers.BatchNormalization(name="batch_norm_2")(x)
+        x = layers.Dense(1250, activation="relu", name="dense_5")(x)
         #x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
         x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None, data_format='channels_first', kernel_initializer='glorot_uniform')(x)
         #outputs = layers.Dense(example_length, activation="tanh", name="out")(x)
@@ -146,8 +144,8 @@ def train(use_chk=False, plot=False, show=False, save=False, plot_idx=0):
         print("Training model...")
         training = True
 
-#    model.compile(optimizer=keras.optimizers.RMSprop(),  # Optimizer
-    model.compile(optimizer=keras.optimizers.Adam(),  # Optimizer
+    model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001),  # Optimizer
+    #model.compile(optimizer=keras.optimizers.Adam(),  # Optimizer
         # Loss function to minimize
         #loss=keras.losses.MeanAbsoluteError(),
         loss=keras.losses.MeanSquaredError(),
@@ -159,12 +157,13 @@ def train(use_chk=False, plot=False, show=False, save=False, plot_idx=0):
         checkpoint = keras.callbacks.ModelCheckpoint(checkpoint_filepath, monitor='loss', verbose=0, save_best_only=True, mode='min')
         callbacks_list = [checkpoint]
         history = model.fit(comp_train, raw_train,
-                    batch_size=64,
+                    batch_size=128,
                     epochs=100,
                     # We pass some validation for
                     # monitoring validation loss and metrics
                     # at the end of each epoch
-                    validation_data=(comp_dev, raw_dev),
+                    validation_split=.2,
+                  #  validation_data=(comp_dev, raw_dev),
                     callbacks=callbacks_list)
 
     if plot is True:
@@ -192,17 +191,9 @@ def train(use_chk=False, plot=False, show=False, save=False, plot_idx=0):
 
 if __name__=="__main__":
     train(
+        remake=False,
         use_chk=True, 
         plot=True, 
         show=True,
         save=False,
-        plot_idx=24)
-
-
-# if __name__=="__main__":
-#     train(
-#         use_chk=False, 
-#         plot=True, 
-#         show=True,
-#         save=False,
-#         plot_idx=75)
+        plot_idx=25016)
