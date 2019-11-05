@@ -64,8 +64,8 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
     np.save(raw_array_path, raw_arr)
     np.save(comp_array_path, comp_arr)
 
-def train():
 
+def train(use_chk=False, plot=False, show=False, save=False, plot_idx=0):
     raw_path = "/Users/max/Documents/CS230/data/raw/" # Change this for yourself
     comp_path = "/Users/max/Documents/CS230/data/compressed/" # Change this for yourself
     ignore_list = [45, 49, 177, 401, 418, 460]
@@ -85,8 +85,10 @@ def train():
     n_x = len(raw_arr[:,0])
     n_y = n_x
 
-    raw_arr_norm = tf.keras.utils.normalize(raw_arr, axis=1)
-    comp_arr_norm = comp_arr / 255
+   # raw_arr_norm = tf.keras.utils.normalize(raw_arr, axis=1)
+    raw_arr_norm = raw_arr
+    #comp_arr_norm = comp_arr / 255
+    comp_arr_norm = comp_arr
 
     raw_arr_norm = raw_arr_norm.T
     comp_arr_norm = comp_arr_norm.T
@@ -98,17 +100,16 @@ def train():
 
     def model_create(example_length):
         inputs = keras.Input(shape=(example_length,), name="in")
-        x = layers.Dense(1000, activation="relu", name="dense_1")(inputs)
-        x = layers.Dense(1000, activation="relu", name="dense_2")(x)
-        x = layers.Dense(1000, activation="relu", name="dense_3")(x)
-        x = layers.Dense(1000, activation="relu", name="dense_4")(x)
-        x = layers.Dense(1000, activation="relu", name="dense_5")(x)
-        outputs = layers.Dense(example_length, activation="tanh", name="out")(x)
+        x = layers.Dense(1500, activation="relu", name="dense_1")(inputs)
+        x = layers.Dense(1500, activation="relu", name="dense_2")(x)
+        x = layers.Dense(1500, activation="relu", name="dense_3")(x)
+        x = layers.Dense(1500, activation="relu", name="dense_4")(x)
+        x = layers.Dense(1500, activation="relu", name="dense_5")(x)
+        #outputs = layers.Dense(example_length, activation="tanh", name="out")(x)
+        outputs = layers.Dense(example_length, name="out")(x)
         return keras.Model(inputs=inputs, outputs=outputs)
 
     model = model_create(n_x)
-
-    use_chk = True
 
     checkpoint_filepath = "./model_chk.hdf5"
     training = False
@@ -121,7 +122,7 @@ def train():
         training = True
 
 #    model.compile(optimizer=keras.optimizers.RMSprop(),  # Optimizer
-    model.compile(optimizer=keras.optimizers.RMSprop(),  # Optimizer
+    model.compile(optimizer=keras.optimizers.Adam(),  # Optimizer
         # Loss function to minimize
         loss=keras.losses.MeanSquaredError(),
         # List of metrics to monitor
@@ -131,18 +132,16 @@ def train():
         checkpoint = keras.callbacks.ModelCheckpoint(checkpoint_filepath, monitor='loss', verbose=1, save_best_only=True, mode='max')
         callbacks_list = [checkpoint]
         history = model.fit(comp_train, raw_train,
-                    batch_size=128,
-                    epochs=5,
+                    batch_size=64,
+                    epochs=20,
                     # We pass some validation for
                     # monitoring validation loss and metrics
                     # at the end of each epoch
                     validation_data=(comp_dev, raw_dev),
                     callbacks=callbacks_list)
 
-    plot = True
-
     if plot is True:
-        which_num = 75
+        which_num = plot_idx
         comp_re = np.reshape(comp_train[which_num], (1, 71))
         predicted = model.predict(comp_re)
         predicted = predicted.reshape((71,1))
@@ -150,43 +149,25 @@ def train():
         plt.figure()
         plt.title('Compressed...')
         plt.plot(comp_train[which_num])
-        plt.savefig(f"../img/compressed_{which_num}.png")
+        if save is True:
+            plt.savefig(f"../img/compressed_{which_num}.png")
         plt.figure()
         plt.title('Recon...')
         plt.plot(predicted)
-        plt.savefig(f"../img/reconstructed_{which_num}.png")
+        if save is True:
+            plt.savefig(f"../img/reconstructed_{which_num}.png")
         plt.figure()
         plt.title('Raw...')
         plt.plot(actual)
-        plt.savefig(f"../img/actual_{which_num}.png")
-        #plt.show()
+        if save is True:
+            plt.savefig(f"../img/actual_{which_num}.png")
+        if show is True:
+            plt.show()
 
 if __name__=="__main__":
-    train()
-
-    # @tf.function
-    # def forward(x):
-    #     Z1 = tf.matmul(W1, x) + b1
-    #     A1 = tf.nn.relu(Z1)
-    #     Z2 = tf.matmul(W2, A1) + b2
-    #     A2 = tf.nn.relu(Z2)
-    #     Z3 = tf.matmul(W3, A2) + b3
-    #     A3 = tf.tanh(Z3)
-
-    #     return A3
-
-    # @tf.function
-    # def cost(forward, Y):
-    #     return tf.reduce_mean((forward-Y)**2)
-
-
-    # Now we can modify these arrays to be in the form we need
-    # plt.figure(figsize=(20, 18))
-    # for i in range(6):
-    # #	(rate, data) = wav.read(train_data_dir + fnames[i])
-    #     plt.subplot(3,2,i+1)
-    #     spec = plt.specgram(items_np[i][0].squeeze(), Fs=20000, NFFT=5, noverlap=1, mode='psd')
-    #     plt.yscale('log')
-    #     plt.ylim([10,8000])
-    #     plt.title(raw_list[i])
-    # plt.show()
+    train(
+        use_chk=False, 
+        plot=True, 
+        show=True,
+        save=False,
+        plot_idx=75)
