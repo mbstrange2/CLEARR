@@ -52,7 +52,7 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
 
     num_examples = len(raw_dict.keys())
 
-    print(num_examples)
+    print("Number of examples: " + str(num_examples))
 
     length_example = len(raw_dict[(1,1, "nonspike")])
     length_example = len(raw_dict[(1,1, "spike")])
@@ -66,13 +66,12 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
         if (elec_num, spike_num, spikedness) not in comp_dict.keys():
             print("FAILURE...not in comp_dict")
             break
-        raw_arr[:,i] = raw_dict[(elec_num, spike_num)]
-        comp_arr[:,i] = comp_dict[(elec_num, spike_num)]
+        raw_arr[:,i] = raw_dict[(elec_num, spike_num, spikedness)]
+        comp_arr[:,i] = comp_dict[(elec_num, spike_num, spikedness)]
         i += 1
 
     np.save(raw_array_path, raw_arr)
     np.save(comp_array_path, comp_arr)
-
 
 def train(use_chk=False, plot=False, show=False, save=False, plot_idx=0):
     raw_path = "/Users/max/Documents/CS230/data/raw/" # Change this for yourself
