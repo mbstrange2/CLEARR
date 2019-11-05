@@ -155,16 +155,25 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
         metrics=[keras.metrics.MeanSquaredError()])
 
     if training is True:
+        batch_size = 128
+        epochs = 100
         checkpoint = keras.callbacks.ModelCheckpoint(checkpoint_filepath, monitor='loss', verbose=0, save_best_only=True, mode='min')
         callbacks_list = [checkpoint]
         history = model.fit(comp_train, raw_train,
-                    batch_size=256,
-                    epochs=75,
+                    batch_size=batch_size, # 128
+                    epochs=epochs, # 100
                     # Let 20% of the training data be used for 
                     # our deveset
-                    validation_split=.2,
+                    validation_split=.15,
                     # Have this callback for checkpointing our model
                     callbacks=callbacks_list)
+        hist_loss = history.history['loss']
+        plt.figure()
+        plt.title('Loss vs epoch...')
+        plt.plot(hist_loss)
+        plt.savefig(f"../img/loss_batch_size_{batch_size}_epochs_{epochs}.png")
+        if show is True:
+            plt.show()
 
     if plot is True:
         which_num = plot_idx
@@ -193,7 +202,7 @@ if __name__=="__main__":
     train(
         remake=False,
         use_chk=False, 
-        plot=True, 
-        show=True,
+        plot=False, 
+        show=False,
         save=False,
         plot_idx=25016)
