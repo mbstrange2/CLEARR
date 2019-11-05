@@ -3,3 +3,5 @@
 venv
 .vscode
 *model_chk*
+compressed
+raw

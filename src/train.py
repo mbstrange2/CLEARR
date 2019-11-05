@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
+from pathlib import Path
 
 def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_path):
     raw_files = listdir(raw_path)
@@ -24,9 +25,9 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
     for f in raw_files:
         electrode_num = None
         if f.endswith('.mat'):
+            temp_inputs = loadmat(raw_path / str(f))
             f = f.split(".")[0] # Get rid of file extension
-            #print("Processing " + str(f))
-            temp_inputs = loadmat(raw_path + str(f))
+            print("Processing " + str(f))
             electrode_num = int(f.split("_")[2])
             spike_num = int(f.split("_")[4])
             spikedness = f.split("_")[3]
@@ -37,9 +38,9 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
     for f in comp_files:
         electrode_num = None
         if f.endswith('.mat'):
+            temp_inputs = loadmat(comp_path / str(f))
             f = f.split(".")[0] # Get rid of file extension
-            #print("Processing " + str(f))
-            temp_inputs = loadmat(comp_path + str(f))
+            print("Processing " + str(f))
             electrode_num = int(f.split("_")[2])
             spike_num = int(f.split("_")[4])
             spikedness = f.split("_")[3]
@@ -71,8 +72,10 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
     np.save(comp_array_path, comp_arr)
 
 def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_idx=0):
-    raw_path = "/Users/max/Documents/CS230/data/raw/" # Change this for yourself
-    comp_path = "/Users/max/Documents/CS230/data/compressed/" # Change this for yourself
+   # raw_path = Path("/Users/max/Documents/CS230/data/raw/") # Change this for yourself
+   # comp_path = Path("/Users/max/Documents/CS230/data/compressed/") # Change this for yourself
+    raw_path = Path("C:/Users/Mek/CLEARR/raw") # Change this for yourself
+    comp_path = Path("C:/Users/Mek/CLEARR/compressed")
     ignore_list = [45, 49, 177, 401, 418, 460]
 
     raw_array_path = "./raw_array.npy"
@@ -88,12 +91,10 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
     comp_arr = np.load(comp_array_path)
     
     n_x = len(raw_arr[:,0])
-    n_y = n_x
 
    # raw_arr_norm = tf.keras.utils.normalize(raw_arr, axis=1)
     raw_arr_norm = raw_arr
     comp_arr_norm = comp_arr / 255
-    #comp_arr_norm = comp_arr
 
     raw_arr_norm = raw_arr_norm.T
     comp_arr_norm = comp_arr_norm.T
@@ -106,24 +107,22 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
 
     comp_train = comp_arr_norm
     raw_train = raw_arr_norm
-   # raw_train = tf.dtypes.cast(raw_arr_norm[0:12000], tf.float32)
-   # raw_dev = tf.dtypes.cast(raw_arr_norm[12000:], tf.float32)
-   # comp_train = tf.dtypes.cast(comp_arr_norm[0:12000], tf.float32)
-   # comp_dev = tf.dtypes.cast(comp_arr_norm[12000:], tf.float32)
 
     def model_create(example_length):
         inputs = keras.Input(shape=(1, example_length, ), name="in")
         #x = layers.Dense(1500, activation="relu", name="dense_1")(inputs)
-        x = layers.Conv1D(filters=50, kernel_size=3, strides=1, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
+        x = layers.Conv1D(filters=50, kernel_size=5, strides=1, padding='same', activation=None,data_format='channels_first', use_bias=True, 
+                            kernel_regularizer=keras.regularizers.l2(0.001), kernel_initializer='glorot_uniform')(inputs)
      #   x = layers.Conv1D(filters=50, kernel_size=5, strides=2, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(x)
       #  x = layers.Dense(1000, activation="relu", name="dense_1")(inputs)
       #  x = layers.BatchNormalization(name="batch_norm_1")(x)
-        x = layers.Dense(1250, activation="relu", name="dense_2")(x)
+        x = layers.Dense(1000, activation="relu", kernel_regularizer=keras.regularizers.l2(0.002), name="dense_2")(x)
         x = layers.BatchNormalization(name="batch_norm_1")(x)
-        x = layers.Dense(1250, activation="relu", name="dense_3")(x)
-        x = layers.Dense(1250, activation="relu", name="dense_4")(x)
+        x = layers.Dense(1000, activation="relu", kernel_regularizer=keras.regularizers.l2(0.002), name="dense_3")(x)
+        x = layers.Dense(1000, activation="relu", name="dense_4")(x)
+       # x = layers.Dense(1000, activation="relu", kernel_regularizer=keras.regularizers.l2(0.002), name="dense_4")(x)
         x = layers.BatchNormalization(name="batch_norm_2")(x)
-        x = layers.Dense(1250, activation="relu", name="dense_5")(x)
+        x = layers.Dense(1000, activation="relu", name="dense_5")(x)
         #x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
         x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None, data_format='channels_first', kernel_initializer='glorot_uniform')(x)
         #outputs = layers.Dense(example_length, activation="tanh", name="out")(x)
@@ -149,8 +148,7 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
         decay_rate=0.96,
         staircase=True)
 
-    model.compile(optimizer=keras.optimizers.Adam(learning_rate=lr_schedule),  # Optimizer
-    #model.compile(optimizer=keras.optimizers.Adam(),  # Optimizer
+    model.compile(optimizer=keras.optimizers.Adam(learning_rate=.001),  # Optimizer
         # Loss function to minimize
         loss=keras.losses.MeanSquaredError(),
         # List of metrics to monitor
@@ -160,13 +158,12 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
         checkpoint = keras.callbacks.ModelCheckpoint(checkpoint_filepath, monitor='loss', verbose=0, save_best_only=True, mode='min')
         callbacks_list = [checkpoint]
         history = model.fit(comp_train, raw_train,
-                    batch_size=128,
-                    epochs=100,
-                    # We pass some validation for
-                    # monitoring validation loss and metrics
-                    # at the end of each epoch
+                    batch_size=256,
+                    epochs=75,
+                    # Let 20% of the training data be used for 
+                    # our deveset
                     validation_split=.2,
-                  #  validation_data=(comp_dev, raw_dev),
+                    # Have this callback for checkpointing our model
                     callbacks=callbacks_list)
 
     if plot is True:
