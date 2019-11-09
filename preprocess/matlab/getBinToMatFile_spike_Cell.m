@@ -1,21 +1,12 @@
-%% Author: Dante Muratore - dantemur@stanford.edu
-% 05-Feb-2018
-% -- based on previous work from Nathan Staffa
-%
-% This script provides basic Matlab interaction to .bin files from
-% retina recordings in the Chichilnisky lab. It uses the spike sorter
-% Vision to support some of the functionalities.
 
-% The script reads .bin files, calibrate the offset of each channel and
-% saves the output in a .mat file.
-
-%clear all;close all;clc; 
-
+%clear all; clc; 
 %% Set paths -- this path is user dependant %
 % utilities, data and output paths are passed
 % Vision paths are defined in setPaths function
 dataPath = '/home/ubuntu/data/2013-05-28-4/data000/';
 outputPath = '/home/ubuntu/data/2013-05-28-4/mat/';
+outputPath1 = '/home/ubuntu/data/2013-05-28-4/data000/compressed/';
+outputPath2 = '/home/ubuntu/data/2013-05-28-4/data000/raw/';
 util = '/home/ubuntu/vision7-unix/';
 spikePath='/home/ubuntu/analysis/2013-05-28-4/data000/data000.spikes';
 setPaths(dataPath,outputPath,util);
@@ -53,9 +44,11 @@ nSamplesToCopy = nSamplesToRead; % So it resets each time.
 % the individual files stay under 2GB (in case of old FAT filesystems).
 sampsThisFile = 0;
 firstCycle = 1;
-% start with empty matrix
-%newData = zeros(nSamplesToRead,nElec+1);
 
+%% prepare data for compression
+% start with empty matrix
+% newData = zeros(nSamplesToRead,nElec+1);
+% 
 % while nSamplesToCopy > 0
 %     
 %     sampsThisFile = sampsThisFile + min(bufferSize,nSamplesToCopy);
@@ -89,29 +82,43 @@ toc;
 
 % close the internal arrays to free memory.
 rawFile.close;
-
-
+%% uncomment line 84 and 85  to prepare file for pytorch to compress 
 %outputFile = [outputPath '/data000_' num2str(Tmeas) 's.mat'];
 %save(outputFile, 'newData', '-v7.3');
-%Compressed=csvread('/home/ubuntu/data/2013-05-28-4/naive_2ramp/8b_1w/data000/data000000.csv');
-%Compressed=Compressed.';
+
+%% Import compressed data 
+%Compressed= csvread('/home/ubuntu/data/2013-05-28-4/naive_2ramp/8b_1w/data000/data000000.csv',0,0,[0 0 2000000 512]);
+
+%% Cropping the spikes
 %eliminate electrode 45,49,177,401,418,460
- for ArrayIndex=461:1:512
+ArrayIndex=1;
+ while ArrayIndex <513
      Tspike=spikeFile.getSpikeTimes(ArrayIndex);
      SpikeCount=size(Tspike);
      SpikeCount=SpikeCount(1,1);
 %     for i=1:1:SpikeCount
-     for i=1:1:min(30,SpikeCount)
+     for i=150:1:min(180,SpikeCount)
+%% compressed
          t=Tspike(i+1);
           temp=Compressed(t-10:t+60,ArrayIndex);
-          SpikeClip=[outputPath '/data000Compressed_electrode_' num2str(ArrayIndex) '_spike_' num2str(i)  '.mat'];
+          SpikeClip=[outputPath1 '/data000Compressed_electrode_' num2str(ArrayIndex) '_spike_' num2str(i)  '.mat'];
           save(SpikeClip, 'temp');
           temp=Compressed(t+110:t+180,ArrayIndex);
-          SpikeClip=[outputPath '/data000Compressed_electrode_' num2str(ArrayIndex) '_nonspike_' num2str(i) '.mat'];
-
+          SpikeClip=[outputPath1 '/data000Compressed_electrode_' num2str(ArrayIndex) '_nonspike_' num2str(i) '.mat'];
           save(SpikeClip, 'temp');
+%% raw
+          
+%           temp=newData(t-10:t+60,ArrayIndex);
+%           SpikeClip=[outputPath2 '/data000_electrode_' num2str(ArrayIndex) '_spike_' num2str(i)  '.mat'];
+%           save(SpikeClip, 'temp');
+%           temp=newData(t+110:t+180,ArrayIndex);
+%           SpikeClip=[outputPath2 '/data000_electrode_' num2str(ArrayIndex) '_nonspike_' num2str(i) '.mat'];
+%           save(SpikeClip, 'temp');
+%           
      end
-     disp(['====================== samples cropped: ', num2str(ArrayIndex*30), ' ======================']);
+     ArrayIndex= ArrayIndex+1;
+
+     disp(['====================== samples cropped: ', num2str((ArrayIndex-1)*60), ' ======================']);
  end
 %  
 % for ArrayIndex=1:1:512
