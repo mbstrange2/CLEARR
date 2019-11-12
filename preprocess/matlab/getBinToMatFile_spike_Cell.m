@@ -32,8 +32,8 @@ samplesPerBinFile = 2.4e6;  % 2.4e6 to limit to <2GB per file.
 %% Start parallel pool
 p = gcp('nocreate'); % If no pool, do not create new one.
 if isempty(p)
-    parpool(6)                 % leave 12 cores available
-    nw = 6;
+    parpool(2)                 % leave 12 cores available
+    nw = 2;
     fprintf(['Local cluster built with ', num2str(nw), ' workers.\n'])
  else
      nw = p.NumWorkers;
@@ -110,6 +110,7 @@ else
 end
 
 
+startSample = base_time_min * 60 * fs; % Put this back in for offsetting
 %% Cropping the spikes
 %eliminate electrode 45,49,177,401,418,460
 %ArrayIndex=1;
