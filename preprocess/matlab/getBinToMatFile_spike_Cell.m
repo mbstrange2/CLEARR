@@ -23,7 +23,7 @@ spikeFile=edu.ucsc.neurobiology.vision.io.SpikeFile(spikePath);
 fs = 20e3;
 Tmeas = 5*60;
 nSamplesToRead = Tmeas*fs;   % how many samples to read
-base_time_min = 10;
+base_time_min = 0; % Make sure to update
 startSample = base_time_min * 60 * fs;
 bufferSize = 100000; %1000000; % The number of samples to process at a time.
 % The number of samples processed before starting a new .bin file
@@ -55,7 +55,7 @@ sampsThisFile = 0;
 firstCycle = 1;
 outputFile = [outputPath '/data000_' num2str(Tmeas) '_sample_start_' num2str(base_time_min) 'm.mat'];
 
-compressed_data = 0; % Set to 1 to use compressed
+compressed_data = 1; % Set to 1 to use compressed
 
 %% prepare data for compression
 if exist(outputFile) && (compressed_data == 0)
@@ -104,8 +104,11 @@ elseif(compressed_data == 0)
 else
     % Import compressed data 
     fprintf('Using the compressed input...\n');
-    compressed_path = '/nobackupkiwi/mstrange/CS230/data/2015-11-09-3/mat/data_compressed_start0.csv';
-    Compressed = csvread(compressed_path,0,0,[0 0 2000000 512]);
+    compressed_path = '/nobackupkiwi/mstrange/CS230/data/2015-11-09-3/mat/data000_start_0m.csv';
+    %Compressed = readmatrix(compressed_path);
+    %Compressed = csvread(compressed_path,0,0,[0 0 6000000 512]);
+    Compressed = csvread(compressed_path);
+    size(Compressed)
     fprintf('Finished reading the compressed input...\n');
 end
 
