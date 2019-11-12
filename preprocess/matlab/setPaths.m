@@ -1,6 +1,6 @@
 function setPaths(dataPath,outputPath, util)
 %% Set paths -- this path is user dependant %
-visionPath = '/home/ubuntu/vision7-unix/Vision.jar';
+visionPath = '/nobackupkiwi/mstrange/CS230/vision7-unix/Vision.jar';
 visionWritePath = [util, 'WriteDataFile.jar'];
 % Add Vision to the path if not already there.
 
