@@ -23,7 +23,7 @@ spikeFile=edu.ucsc.neurobiology.vision.io.SpikeFile(spikePath);
 fs = 20e3;
 Tmeas = 5*60;
 nSamplesToRead = Tmeas*fs;   % how many samples to read
-base_time_min = 0;
+base_time_min = 10;
 startSample = base_time_min * 60 * fs;
 bufferSize = 100000; %1000000; % The number of samples to process at a time.
 % The number of samples processed before starting a new .bin file
@@ -169,7 +169,7 @@ for ArrayIndex=1:1:512
     end
 
     for i=start_spike:1:final_spike
-        t=Tspike(i);
+        t=Tspike(i) - startSample;
         % compressed or raw...
         if((len_comp > t+59) && (t > 10))
             temp=data_row(t-10:t+60);
