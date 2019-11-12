@@ -55,8 +55,8 @@ sampsThisFile = 0;
 firstCycle = 1;
 outputFile = [outputPath '/data000_' num2str(Tmeas) '_sample_start_' num2str(base_time_min) 'm.mat'];
 
-compressed_data = 1; % Set to 1 to use compressed
-
+compressed_data = 0; % Set to 1 to use compressed
+startSample_loop = startSample;
 %% prepare data for compression
 if exist(outputFile) && (compressed_data == 0)
     fprintf('Mat file already exists!\n');
@@ -72,7 +72,7 @@ elseif(compressed_data == 0)
         sampsThisFile = sampsThisFile + min(bufferSize,nSamplesToCopy);
      
         % either fills the buffer entirely, or grabs the remaining samples
-        rawData = rawFile.getData(startSample, min(bufferSize,nSamplesToCopy));
+        rawData = rawFile.getData(startSample_loop, min(bufferSize,nSamplesToCopy));
         nSamples = size(rawData,1);    
         if firstCycle
             % gets an offset per channel in a vector long nElec
@@ -88,10 +88,10 @@ elseif(compressed_data == 0)
         end
     
         % Appends data passed in to the final matrix
-        newData(startSample + 1 : startSample + size(tmp,1),:) = tmp;
+        newData(startSample_loop - startSample + 1 : startSample_loop - startSample + size(tmp,1),:) = tmp;
         % You've copied a full buffer so you now need to copy less.
         nSamplesToCopy = nSamplesToCopy - bufferSize;
-        startSample = startSample + bufferSize; % also increase your start index.
+        startSample_loop = startSample_loop + bufferSize; % also increase your start index.
         disp(['====================== samples left to copy: ', num2str(nSamplesToCopy), ' ======================']);
     end
     disp([datestr(now, 'HH:MM:SS'),' -- Finished processing']);
