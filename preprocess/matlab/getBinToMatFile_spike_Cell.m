@@ -180,7 +180,11 @@ for ArrayIndex=1:1:512
         end
     end
 
-    SpikeClip=[outputPath2 '/data000_electrode_' num2str(ArrayIndex) '_spikes_' num2str(start_spike) '_to_' num2str(final_spike) '.mat'];
+    if(compressed_data==1)
+        SpikeClip=[outputPath1 '/data000Compressed_electrode_' num2str(ArrayIndex) '_spike_' num2str(start_spike) '_to_' num2str(final_spike) '.mat'];
+    else
+        SpikeClip=[outputPath2 '/data000_electrode_' num2str(ArrayIndex) '_spikes_' num2str(start_spike) '_to_' num2str(final_spike) '.mat'];
+    end
     save(SpikeClip, 'spikeArr');
 
     samples_cropped = samples_cropped + ((final_spike - start_spike) * 71);
