@@ -1,29 +1,34 @@
-
-clear all; clc; 
-%% Set paths -- this path is user dependant %
+%clear all; clc; 
+%% Set paths -- this path is user dependent %
 % utilities, data and output paths are passed
 % Vision paths are defined in setPaths function
-dataSet = '2015-11-09-3/';
+
+% DATASET TO USE
+%dataSet = '2015-11-09-3/';
+% BASE TIME IN MINUTES
+%base_time_min = 20; % Make sure to update
+% TURN ON COMPRESSED DATA OR NOT
+%compressed_data = 1; % Set to 1 to use compressed
+
+
 toppath = '/nobackupkiwi/mstrange/CS230/';
 dataPath = [toppath 'data/' dataSet 'data000/'];
-%dataPath = '/nobackupkiwi/mstrange/CS230/data/2013-05-28-4/data000/';
 outputPath = [toppath 'data/' dataSet 'mat/'];
-%outputPath = '/nobackupkiwi/mstrange/CS230/data/2013-05-28-4/mat/';
 outputPath1 = [toppath 'data/' dataSet 'compressed/'];
-%outputPath1 = '/home/ubuntu/data/2013-05-28-4/data000/compressed/';
 outputPath2 = [toppath 'data/' dataSet 'raw/'];
-%outputPath2 = '/home/ubuntu/data/2013-05-28-4/data000/raw/';
 util = [toppath 'vision7-unix/'];
-%util = 'home/ubuntu/vision7-unix/';
 spikePath= [toppath 'analysis/' dataSet 'data000/data000.spikes'];   
-%spikePath='/home/ubuntu/analysis/2013-05-28-4/data000/data000.spikes';
 setPaths(dataPath,outputPath,util);
 spikeFile=edu.ucsc.neurobiology.vision.io.SpikeFile(spikePath);
 %% Set global parameter
+compressed_path = [toppath 'data/' dataSet 'mat/' 'data000_start_' num2str(base_time_min) 'm.csv'];
+if(compressed_data == 1)
+    fprintf('Reading in the compressed file: %s for the starting minute %d\n', compressed_path, base_time_min);
+end
+
 fs = 20e3;
 Tmeas = 5*60;
 nSamplesToRead = Tmeas*fs;   % how many samples to read
-base_time_min = 0; % Make sure to update
 startSample = base_time_min * 60 * fs;
 bufferSize = 100000; %1000000; % The number of samples to process at a time.
 % The number of samples processed before starting a new .bin file
@@ -55,11 +60,10 @@ sampsThisFile = 0;
 firstCycle = 1;
 outputFile = [outputPath '/data000_' num2str(Tmeas) '_sample_start_' num2str(base_time_min) 'm.mat'];
 
-compressed_data = 0; % Set to 1 to use compressed
 startSample_loop = startSample;
 %% prepare data for compression
 if exist(outputFile) && (compressed_data == 0)
-    fprintf('Mat file already exists!\n');
+    fprintf('Mat file already exists: %s\n', outputFile);
     data_file = matfile(outputFile);
     newData=data_file.newData;
     fprintf('newData read...\n');
@@ -104,11 +108,10 @@ elseif(compressed_data == 0)
 else
     % Import compressed data 
     fprintf('Using the compressed input...\n');
-    compressed_path = '/nobackupkiwi/mstrange/CS230/data/2015-11-09-3/mat/data000_start_0m.csv';
     %Compressed = readmatrix(compressed_path);
     %Compressed = csvread(compressed_path,0,0,[0 0 6000000 512]);
     Compressed = csvread(compressed_path);
-    size(Compressed)
+%    size(Compressed)
     fprintf('Finished reading the compressed input...\n');
 end
 
@@ -123,22 +126,22 @@ for ArrayIndex=1:1:512
     Tspike=spikeFile.getSpikeTimes(ArrayIndex);
 
     i = 1;
-    start_spike = 10; % Always falls off the first one anyway...
+    start_spike = 5; % Always falls off the first one anyway...
     final_spike = 0;
     end_time_min = base_time_min + 5;
     if(base_time_min == 0) % Find the gap
         while i <= length(Tspike)
             if(Tspike(i) > (end_time_min * 60 * fs))
-                final_spike = i - 100; % Just to be safe!
+                final_spike = i - 5; % Just to be safe!
                 break;
             end
             i = i + 1;
         end
     elseif (base_time_min == 25)
-        final_spike = length(Tspike)
+        final_spike = length(Tspike);
         while i <= length(Tspike)
             if(Tspike(i) > (base_time_min * 60 * fs))
-                start_spike = i + 100; % Just to be safe!
+                start_spike = i + 5; % Just to be safe!
                 break;
             end
             i = i + 1;
@@ -146,14 +149,14 @@ for ArrayIndex=1:1:512
     else
         while i <= length(Tspike)
             if(Tspike(i) > (base_time_min * 60 * fs))
-                start_spike = i + 100; % Just to be safe!
+                start_spike = i + 5; % Just to be safe!
                 break;
             end
             i = i + 1;
         end
         while i <= length(Tspike)
             if(Tspike(i) > (end_time_min * 60 * fs))
-                final_spike = i - 100; % Just to be safe!
+                final_spike = i - 5; % Just to be safe!
                 break;
             end
             i = i + 1;
@@ -161,6 +164,10 @@ for ArrayIndex=1:1:512
     end
 
     fprintf('Processing electrode %d from %d minutes to %d minutes, using spikes %d to %d\n', ArrayIndex, base_time_min, end_time_min, start_spike, final_spike);
+    if(final_spike < start_spike)
+        fprintf('Range of spikes too small for electrode %d...\n', ArrayIndex);
+        continue
+    end
     spikeArr = zeros(72, (final_spike - start_spike + 1));
 
     len_comp = 0;
@@ -184,9 +191,9 @@ for ArrayIndex=1:1:512
     end
 
     if(compressed_data==1)
-        SpikeClip=[outputPath1 '/data000Compressed_electrode_' num2str(ArrayIndex) '_spike_' num2str(start_spike) '_to_' num2str(final_spike) '.mat'];
+        SpikeClip=[outputPath1 '/data000Compressed_electrode_' num2str(ArrayIndex) '_spike_' num2str(start_spike) '_to_' num2str(final_spike) '_start_' num2str(base_time_min) 'm.mat'];
     else
-        SpikeClip=[outputPath2 '/data000_electrode_' num2str(ArrayIndex) '_spikes_' num2str(start_spike) '_to_' num2str(final_spike) '.mat'];
+        SpikeClip=[outputPath2 '/data000_electrode_' num2str(ArrayIndex) '_spikes_' num2str(start_spike) '_to_' num2str(final_spike) '_start_' num2str(base_time_min) 'm.mat'];
     end
     save(SpikeClip, 'spikeArr');
 
