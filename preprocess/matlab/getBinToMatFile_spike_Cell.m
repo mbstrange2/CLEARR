@@ -1,30 +1,35 @@
-%% Author: Dante Muratore - dantemur@stanford.edu
-% 05-Feb-2018
-% -- based on previous work from Nathan Staffa
-%
-% This script provides basic Matlab interaction to .bin files from
-% retina recordings in the Chichilnisky lab. It uses the spike sorter
-% Vision to support some of the functionalities.
-
-% The script reads .bin files, calibrate the offset of each channel and
-% saves the output in a .mat file.
-
-%clear all;close all;clc; 
-
-%% Set paths -- this path is user dependant %
+%clear all; clc; 
+%% Set paths -- this path is user dependent %
 % utilities, data and output paths are passed
 % Vision paths are defined in setPaths function
-dataPath = '/home/ubuntu/data/2013-05-28-4/data000/';
-outputPath = '/home/ubuntu/data/2013-05-28-4/mat/';
-util = '/home/ubuntu/vision7-unix/';
-spikePath='/home/ubuntu/analysis/2013-05-28-4/data000/data000.spikes';
+
+% DATASET TO USE
+%dataSet = '2015-11-09-3/';
+% BASE TIME IN MINUTES
+%base_time_min = 20; % Make sure to update
+% TURN ON COMPRESSED DATA OR NOT
+%compressed_data = 1; % Set to 1 to use compressed
+
+
+toppath = '/nobackupkiwi/mstrange/CS230/';
+dataPath = [toppath 'data/' dataSet 'data000/'];
+outputPath = [toppath 'data/' dataSet 'mat/'];
+outputPath1 = [toppath 'data/' dataSet 'compressed/'];
+outputPath2 = [toppath 'data/' dataSet 'raw/'];
+util = [toppath 'vision7-unix/'];
+spikePath= [toppath 'analysis/' dataSet 'data000/data000.spikes'];   
 setPaths(dataPath,outputPath,util);
 spikeFile=edu.ucsc.neurobiology.vision.io.SpikeFile(spikePath);
 %% Set global parameter
+compressed_path = [toppath 'data/' dataSet 'mat/' 'data000_start_' num2str(base_time_min) 'm.csv'];
+if(compressed_data == 1)
+    fprintf('Reading in the compressed file: %s for the starting minute %d\n', compressed_path, base_time_min);
+end
+
 fs = 20e3;
-Tmeas = 6*60;
+Tmeas = 5*60;
 nSamplesToRead = Tmeas*fs;   % how many samples to read
-startSample = 0;
+startSample = base_time_min * 60 * fs;
 bufferSize = 100000; %1000000; % The number of samples to process at a time.
 % The number of samples processed before starting a new .bin file
 samplesPerBinFile = 2.4e6;  % 2.4e6 to limit to <2GB per file.
@@ -53,66 +58,149 @@ nSamplesToCopy = nSamplesToRead; % So it resets each time.
 % the individual files stay under 2GB (in case of old FAT filesystems).
 sampsThisFile = 0;
 firstCycle = 1;
-% start with empty matrix
-%newData = zeros(nSamplesToRead,nElec+1);
+outputFile = [outputPath '/data000_' num2str(Tmeas) '_sample_start_' num2str(base_time_min) 'm.mat'];
 
-% while nSamplesToCopy > 0
-%     
-%     sampsThisFile = sampsThisFile + min(bufferSize,nSamplesToCopy);
-%     
-%     % either fills the buffer entirely, or grabs the remaining samples
-%     rawData = rawFile.getData(startSample, min(bufferSize,nSamplesToCopy));
-%     nSamples = size(rawData,1);
-%     if firstCycle
-%         % gets an offset per channel in a vector long nElec
-%         samplesForOffset = min(nSamples,50e3);
-%         [offsetPerChannel] = offsetPerChannel_mex(rawData(1:samplesForOffset,2:end));
-%         firstCycle = 0;
-%     end
-%     
-%     % define the tmp array and save calibrated data to it
-%     tmp = zeros(nSamples,nElec+1,'int16');
-%      parfor i=1:nSamples
-%         [tmp(i,:)] = offsetCalibration(rawData(i,:),offsetPerChannel);
-%     end
-%    
-%     % Appends data passed in to the final matrix
-%     newData(startSample + 1 : startSample + size(tmp,1),:) = tmp;
-%     % You've copied a full buffer so you now need to copy less.
-%     nSamplesToCopy = nSamplesToCopy - bufferSize;
-%     startSample = startSample + bufferSize; % also increase your start index.
-%     disp(['====================== samples left to copy: ', num2str(nSamplesToCopy), ' ======================']);
-% end
+startSample_loop = startSample;
+%% prepare data for compression
+if exist(outputFile) && (compressed_data == 0)
+    fprintf('Mat file already exists: %s\n', outputFile);
+    data_file = matfile(outputFile);
+    newData=data_file.newData;
+    fprintf('newData read...\n');
+elseif(compressed_data == 0)
+    fprintf('Creating new mat file: %s\n', outputFile);
+    % start with empty matrix
+    newData = zeros(nSamplesToRead,nElec+1);
+    while nSamplesToCopy > 0
+     
+        sampsThisFile = sampsThisFile + min(bufferSize,nSamplesToCopy);
+     
+        % either fills the buffer entirely, or grabs the remaining samples
+        rawData = rawFile.getData(startSample_loop, min(bufferSize,nSamplesToCopy));
+        nSamples = size(rawData,1);    
+        if firstCycle
+            % gets an offset per channel in a vector long nElec
+            samplesForOffset = min(nSamples,50e3);
+            [offsetPerChannel] = offsetPerChannel_mex(rawData(1:samplesForOffset,2:end));
+            firstCycle = 0;
+        end
+  
+        % define the tmp array and save calibrated data to it
+        tmp = zeros(nSamples,nElec+1,'int16');
+        parfor i=1:nSamples
+            [tmp(i,:)] = offsetCalibration(rawData(i,:),offsetPerChannel);
+        end
+    
+        % Appends data passed in to the final matrix
+        newData(startSample_loop - startSample + 1 : startSample_loop - startSample + size(tmp,1),:) = tmp;
+        % You've copied a full buffer so you now need to copy less.
+        nSamplesToCopy = nSamplesToCopy - bufferSize;
+        startSample_loop = startSample_loop + bufferSize; % also increase your start index.
+        disp(['====================== samples left to copy: ', num2str(nSamplesToCopy), ' ======================']);
+    end
+    disp([datestr(now, 'HH:MM:SS'),' -- Finished processing']);
+    toc;
+    % close the internal arrays to free memory.
+    rawFile.close;
+    %% uncomment line 84 and 85  to prepare file for pytorch to compress 
+    save(outputFile, 'newData', '-v7.3');
+    fprintf('Done creating output file\n');
+else
+    % Import compressed data 
+    fprintf('Using the compressed input...\n');
+    %Compressed = readmatrix(compressed_path);
+    %Compressed = csvread(compressed_path,0,0,[0 0 6000000 512]);
+    Compressed = csvread(compressed_path);
+%    size(Compressed)
+    fprintf('Finished reading the compressed input...\n');
+end
 
-disp([datestr(now, 'HH:MM:SS'),' -- Finished processing']);
-toc;
 
-% close the internal arrays to free memory.
-rawFile.close;
-
-
-%outputFile = [outputPath '/data000_' num2str(Tmeas) 's.mat'];
-%save(outputFile, 'newData', '-v7.3');
-%Compressed=csvread('/home/ubuntu/data/2013-05-28-4/naive_2ramp/8b_1w/data000/data000000.csv');
-%Compressed=Compressed.';
+startSample = base_time_min * 60 * fs; % Put this back in for offsetting
+%% Cropping the spikes
 %eliminate electrode 45,49,177,401,418,460
- for ArrayIndex=461:1:512
-     Tspike=spikeFile.getSpikeTimes(ArrayIndex);
-     SpikeCount=size(Tspike);
-     SpikeCount=SpikeCount(1,1);
-%     for i=1:1:SpikeCount
-     for i=1:1:min(30,SpikeCount)
-         t=Tspike(i+1);
-          temp=Compressed(t-10:t+60,ArrayIndex);
-          SpikeClip=[outputPath '/data000Compressed_electrode_' num2str(ArrayIndex) '_spike_' num2str(i)  '.mat'];
-          save(SpikeClip, 'temp');
-          temp=Compressed(t+110:t+180,ArrayIndex);
-          SpikeClip=[outputPath '/data000Compressed_electrode_' num2str(ArrayIndex) '_nonspike_' num2str(i) '.mat'];
+%ArrayIndex=1;
+samples_cropped = 0;
+for ArrayIndex=1:1:512
 
-          save(SpikeClip, 'temp');
-     end
-     disp(['====================== samples cropped: ', num2str(ArrayIndex*30), ' ======================']);
+    Tspike=spikeFile.getSpikeTimes(ArrayIndex);
+
+    i = 1;
+    start_spike = 5; % Always falls off the first one anyway...
+    final_spike = 0;
+    end_time_min = base_time_min + 5;
+    if(base_time_min == 0) % Find the gap
+        while i <= length(Tspike)
+            if(Tspike(i) > (end_time_min * 60 * fs))
+                final_spike = i - 5; % Just to be safe!
+                break;
+            end
+            i = i + 1;
+        end
+    elseif (base_time_min == 25)
+        final_spike = length(Tspike);
+        while i <= length(Tspike)
+            if(Tspike(i) > (base_time_min * 60 * fs))
+                start_spike = i + 5; % Just to be safe!
+                break;
+            end
+            i = i + 1;
+        end
+    else
+        while i <= length(Tspike)
+            if(Tspike(i) > (base_time_min * 60 * fs))
+                start_spike = i + 5; % Just to be safe!
+                break;
+            end
+            i = i + 1;
+        end
+        while i <= length(Tspike)
+            if(Tspike(i) > (end_time_min * 60 * fs))
+                final_spike = i - 5; % Just to be safe!
+                break;
+            end
+            i = i + 1;
+        end
+    end
+
+    fprintf('Processing electrode %d from %d minutes to %d minutes, using spikes %d to %d\n', ArrayIndex, base_time_min, end_time_min, start_spike, final_spike);
+    if(final_spike < start_spike)
+        fprintf('Range of spikes too small for electrode %d...\n', ArrayIndex);
+        continue
+    end
+    spikeArr = zeros(72, (final_spike - start_spike + 1));
+
+    len_comp = 0;
+    if(compressed_data == 1)
+        len_comp = length(Compressed(:, ArrayIndex));
+        data_row = Compressed(:, ArrayIndex);
+    else
+        len_comp = length(newData(:, ArrayIndex));
+        data_row = newData(:, ArrayIndex);
+    end
+
+    for i=start_spike:1:final_spike
+        t=Tspike(i) - startSample;
+        % compressed or raw...
+        if((len_comp > t+59) && (t > 10))
+            temp=data_row(t-10:t+60);
+            spikeArr(:, i - start_spike + 1) = [i; temp];
+        else
+            fprintf('Fell of of the spike at %d\n', i);
+        end
+    end
+
+    if(compressed_data==1)
+        SpikeClip=[outputPath1 '/data000Compressed_electrode_' num2str(ArrayIndex) '_spike_' num2str(start_spike) '_to_' num2str(final_spike) '_start_' num2str(base_time_min) 'm.mat'];
+    else
+        SpikeClip=[outputPath2 '/data000_electrode_' num2str(ArrayIndex) '_spikes_' num2str(start_spike) '_to_' num2str(final_spike) '_start_' num2str(base_time_min) 'm.mat'];
+    end
+    save(SpikeClip, 'spikeArr');
+
+    samples_cropped = samples_cropped + ((final_spike - start_spike) * 71);
+    disp(['====================== samples cropped: ', num2str(samples_cropped), ' ======================']);
  end
+
 %  
 % for ArrayIndex=1:1:512
 %      Tspike=spikeFile.getSpikeTimes(ArrayIndex);
@@ -132,8 +220,12 @@ rawFile.close;
 %      disp(['====================== samples cropped: ', num2str(ArrayIndex*30), ' ======================']);
 %  end
 
-
-
+%          temp=Compressed(t+110:t+180,ArrayIndex);
+%          SpikeClip=[outputPath1 '/data000Compressed_electrode_' num2str(ArrayIndex) '_nonspike_' num2str(i) '.mat'];
+%          save(SpikeClip, 'temp');
+     %      temp=newData(t+110:t+180,ArrayIndex);
+     %      SpikeClip=[outputPath2 '/data000_electrode_' num2str(ArrayIndex) '_nonspike_' num2str(i) '.mat'];
+     %      save(SpikeClip, 'temp');
 %comments: channel 412 has a nice spike as example
 % figure(1)
 % t = 1:1:size(rawData,1);
@@ -151,3 +243,32 @@ rawFile.close;
 % mCollisions = mean(nCollisions)
 % mActivityFree = mean(activityFactor)*20e3
 % compressionRatio = nyquistRate/mActivityFree
+  %  fprintf('Number of spikes for electrode %d: %d\n', ArrayIndex, length(Tspike));
+  %  five_min = 5;
+  %  i = 1;
+  %  while i <= length(Tspike)
+  %      if(Tspike(i) > (five_min * 60 * fs))
+  %          fprintf('Crossed spike no %d at %d minutes\n', i, five_min);
+  %          five_min =five_min + 5;
+  %      end
+  %      i = i + 1;
+  %  end
+%    ArrayIndex = ArrayIndex + 1;
+ %   continue
+ %     SpikeCount=size(Tspike);
+%     SpikeCount=SpikeCount(1,1);
+%                SpikeClip=[outputPath1 '/data000Compressed_electrode_' num2str(ArrayIndex) '_spike_' num2str(i)  '.mat'];
+%                save(SpikeClip, 'temp');
+%        else
+%            if(mod(i, 1000) == 0)
+%                fprintf('tic-tok');
+%            end
+%            if((len_raw > t+59) && (t > 10))
+%                temp=newData(t-10:t+60,ArrayIndex);
+%                spikeArr(:, i - start_spike + 1) = [i; temp];
+%            else
+%                fprintf('Ran out of spikes in this file at %d', i)
+        %    end
+        %end
+
+

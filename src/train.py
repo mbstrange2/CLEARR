@@ -111,14 +111,13 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
     def model_create(example_length):
         inputs = keras.Input(shape=(1, example_length, ), name="in")
         #x = layers.Dense(1500, activation="relu", name="dense_1")(inputs)
-        x = layers.Conv1D(filters=50, kernel_size=5, strides=1, padding='same', activation=None,data_format='channels_first', use_bias=True, 
-                            kernel_regularizer=keras.regularizers.l2(0.001), kernel_initializer='glorot_uniform')(inputs)
+        x = layers.Conv1D(filters=50, kernel_size=5, strides=1, padding='same', activation='relu' ,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
      #   x = layers.Conv1D(filters=50, kernel_size=5, strides=2, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(x)
       #  x = layers.Dense(1000, activation="relu", name="dense_1")(inputs)
       #  x = layers.BatchNormalization(name="batch_norm_1")(x)
-        x = layers.Dense(1000, activation="relu", kernel_regularizer=keras.regularizers.l2(0.002), name="dense_2")(x)
+        x = layers.Dense(1000, activation="relu", name="dense_2")(x)
         x = layers.BatchNormalization(name="batch_norm_1")(x)
-        x = layers.Dense(1000, activation="relu", kernel_regularizer=keras.regularizers.l2(0.002), name="dense_3")(x)
+        x = layers.Dense(1000, activation="relu", name="dense_3")(x)
         x = layers.Dense(1000, activation="relu", name="dense_4")(x)
        # x = layers.Dense(1000, activation="relu", kernel_regularizer=keras.regularizers.l2(0.002), name="dense_4")(x)
         x = layers.BatchNormalization(name="batch_norm_2")(x)
@@ -202,7 +201,7 @@ if __name__=="__main__":
     train(
         remake=False,
         use_chk=False, 
-        plot=False, 
-        show=False,
+        plot=True, 
+        show=True,
         save=False,
         plot_idx=25016)
