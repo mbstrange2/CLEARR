@@ -1,3 +1,4 @@
+from numba import jit, cuda
 from scipy.io import loadmat
 import h5py
 import numpy as np
@@ -85,8 +86,6 @@ def train(use_chk=False, plot=False, show=False, save=False, plot_idx=0):
 
     raw_arr = np.load(raw_array_path)
     comp_arr = np.load(comp_array_path)
-    print(raw_arr.shape)
-    print(comp_arr.shape)
     
     n_x = len(raw_arr[:,0])
     n_y = n_x
@@ -95,14 +94,27 @@ def train(use_chk=False, plot=False, show=False, save=False, plot_idx=0):
     raw_arr_norm = raw_arr
     #comp_arr_norm = comp_arr / 255
     comp_arr_norm = comp_arr
-
-    raw_arr_norm = raw_arr_norm.T
-    comp_arr_norm = comp_arr_norm.T
-
-    raw_train = tf.dtypes.cast(raw_arr_norm[0:12000], tf.float32)
-    raw_dev = tf.dtypes.cast(raw_arr_norm[12000:], tf.float32)
-    comp_train = tf.dtypes.cast(comp_arr_norm[0:12000], tf.float32)
-    comp_dev = tf.dtypes.cast(comp_arr_norm[12000:], tf.float32)
+    
+    raw_arr_norm_kapre = np.expand_dims(raw_arr.T, -1)   ## (B x T) -> (B x T x 1)
+    comp_arr_norm_kapre = np.expand_dims(comp_arr.T, -1)   ## (B x T) -> (B x T x 1)
+    raw_arr_norm = np.expand_dims(raw_arr.T, 1)
+    comp_arr_norm = np.expand_dims(comp_arr.T, 1)
+    
+    raw_train_kapre = raw_arr_norm_kapre[0:50000]
+    raw_dev_kapre = raw_arr_norm_kapre[50000:]
+    comp_train_kapre = comp_arr_norm_kapre[0:50000]
+    comp_dev_kapre = comp_arr_norm_kapre[50000:]
+    # raw_train = tf.dtypes.cast(raw_arr_norm[0:12000], tf.float32)
+    # raw_dev = tf.dtypes.cast(raw_arr_norm[12000:], tf.float32)
+    # comp_train = tf.dtypes.cast(comp_arr_norm[0:12000], tf.float32)
+    # comp_dev = tf.dtypes.cast(comp_arr_norm[12000:], tf.float32)
+    raw_train = raw_arr_norm[0:50000]
+    raw_dev = raw_arr_norm[50000:]
+    comp_train = comp_arr_norm[0:50000]
+    comp_dev = comp_arr_norm[50000:]
+    
+    print("raw_train_kapre shape = ", raw_train_kapre.shape)
+    print("raw_dev_kapre shape = ", raw_dev_kapre.shape)
 
     def model_create(example_length):
         inputs = keras.Input(shape=(example_length,1), name="in")
@@ -116,17 +128,12 @@ def train(use_chk=False, plot=False, show=False, save=False, plot_idx=0):
         #outputs = layers.Dense(example_length, activation="tanh", name="out")(x)
         x = layers.Dense(example_length, name="dense_6")(x) #(B x T x T)
         x = layers.Dense(1, name="dense_7")(x)  # (B x T x 1)
-        x = layers.Permute((2,1))(x)    # (B x 1 x T) because this is format that kapre wants
-        outputs = Spectrogram(n_dft=8, n_hop=1, padding='same', power_spectrogram=1.0,
+        x_1d = layers.Permute((2,1), name='1d_output')(x)    # (B x 1 x T) because this is format that kapre wants
+        x_spect = Spectrogram(n_dft=8, n_hop=1, padding='same', power_spectrogram=1.0,
                               return_decibel_spectrogram=False, trainable_kernel=False,
-                              image_data_format='channels_last', name='trainable_stft')(x)  # (B x F x T x 1)
-        return keras.Model(inputs=inputs, outputs=outputs)
-
-    model = model_create(n_x)
-    #model = Sequential()
-    #model.add(model_1d)
-    model.summary()
-
+                              image_data_format='channels_last', name='stft_output')(x_1d)  # (B x F x T x 1)
+        return keras.Model(inputs=inputs, outputs=[x_1d, x_spect])
+    
     def model_create_spectrogram(example_length):
         inputs = keras.Input(shape=(example_length,1), name="in")
         x = layers.Permute((2,1))(inputs)    # (B x 1 x T) because this is format that kapre wants
@@ -134,7 +141,12 @@ def train(use_chk=False, plot=False, show=False, save=False, plot_idx=0):
                               return_decibel_spectrogram=False, trainable_kernel=False,
                               image_data_format='channels_last', name='trainable_stft')(x)  # (B x F x T x 1)
         return keras.Model(inputs=inputs, outputs=outputs)
-    model_spectrogram = model_create_spectrogram(n_x)
+        
+    model = model_create(n_x)
+    model.summary()
+    
+    model_spectrogram = model_create_spectrogram(n_y)
+    model_spectrogram.summary()
     
     checkpoint_filepath = ".\\model_chk.hdf5"
     training = False
@@ -146,34 +158,47 @@ def train(use_chk=False, plot=False, show=False, save=False, plot_idx=0):
         print("Training model...")
         training = True
 
+    losses = {"1d_output": "mean_squared_error",
+              "stft_output": "mean_squared_error"}
+    lossWeights = {"1d_output": 0.3,
+                   "stft_output": 0.7}
 #    model.compile(optimizer=keras.optimizers.RMSprop(),  # Optimizer
     model.compile(optimizer=keras.optimizers.Adam(),  # Optimizer
         # Loss function to minimize
         #loss=keras.losses.MeanAbsoluteError(),
-        loss=keras.losses.MeanSquaredError(),
+        loss=losses, loss_weights=lossWeights,
         # List of metrics to monitor
         #metrics=[keras.metrics.MeanAbsoluteError()])
         metrics=[keras.metrics.MeanSquaredError()])
-    model_spectrogram.compile()
-    model_spectrogram.summary()
+        
+    model_spectrogram.compile(optimizer=keras.optimizers.Adam(),
+        loss=keras.losses.MeanSquaredError())
+        
+    # predicted_stft = model_spectrogram.predict(raw_arr_norm)
+    # print("predicted stft shape = ", predicted_stft.shape)
+    
+    # (predicted_1d, predicted_stft2) = model.predict(comp_arr_norm[0:5])
+    # print("predicted 1d shape = ", predicted_1d.shape)
+    # print("predicted stft shape = ", predicted_stft2.shape)
+    
+    raw_train_stft = model_spectrogram.predict(raw_train_kapre)
+    raw_dev_stft = model_spectrogram.predict(raw_dev_kapre)
     
     if training is True:
         checkpoint = keras.callbacks.ModelCheckpoint(checkpoint_filepath, monitor='loss', verbose=0, save_best_only=True, mode='min')
         callbacks_list = [checkpoint]
-        history = model.fit(comp_train, model_spectrogram.predict(raw_train),
+        history = model.fit(comp_train_kapre,
+                    {"1d_output": raw_train, "stft_output": raw_train_stft},
                     batch_size=64,
-                    epochs=100,
-                    # We pass some validation for
-                    # monitoring validation loss and metrics
-                    # at the end of each epoch
-                    validation_data=(comp_dev, model_spectrogram.predict(raw_dev)),
+                    epochs=100,   
+                    validation_data=(comp_dev_kapre,  # We pass some validation for monitoring validation loss and metrics at the end of each epoch
+                        {"1d_output": raw_dev, "stft_output": raw_dev_stft}), 
                     callbacks=callbacks_list)
         model.save_weights(".\\model_chk_Mel.hd5")
 
     if plot is True:
         which_num = plot_idx
-        comp_re = np.reshape(comp_train[which_num], (1, 71))
-        predicted = model.predict(comp_re)
+        (predicted, _) = model.predict(comp_train[which_num])
         predicted = predicted.reshape((71,1))
         actual = raw_train[which_num]
         plt.figure()
