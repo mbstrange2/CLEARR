@@ -14,6 +14,8 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 from pathlib import Path
+import math
+import random
 
 def filter_data_files(item):
     if "Compressed" not in item:
@@ -117,39 +119,27 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
             else:
                 print("Raw path exists, but compressed path does: " + str(full_path))
 
-
-def array_to_tfrecords(X, y, output_file):
-    features = {
-        'x': tf.train.Feature(float_list=tf.train.FloatList(value=X.flatten())),
-        'y': tf.train.Feature(float_list=tf.train.FloatList(value=y.flatten()))
-    }
-    example = tf.train.Example(features=tf.train.Features(feature=features))
-    serialized = example.SerializeToString()
-
-    writer = tf.io.TFRecordWriter(output_file, options="GZIP")
-    writer.write(serialized)
-    writer.close()
+def array_to_tfrecords(comp, raw, output_file):
+    with tf.io.TFRecordWriter(output_file, options="GZIP") as writer:
+        for j in range(comp.shape[0]):
+            comp_row = comp[j]
+            raw_row = raw[j]
+            #raw_row = tf.keras.utils.normalize(raw_row)
+            features = {
+                'comp': tf.train.Feature(float_list=tf.train.FloatList(value=comp_row.flatten())),
+                'raw': tf.train.Feature(float_list=tf.train.FloatList(value=raw_row.flatten()))
+            }
+            example = tf.train.Example(features=tf.train.Features(feature=features))
+            serialized = example.SerializeToString()
+            writer.write(serialized)
 
 def parse_proto(example_proto):
     features = {
-   #     'x': tf.io.FixedLenSequenceFeature((71,), tf.float32, allow_missing=True),
- #       'y': tf.io.FixedLenSequenceFeature((71,), tf.float32, allow_missing=True)
-        'x': tf.io.FixedLenFeature([], tf.float32),
-        'y': tf.io.FixedLenFeature([], tf.float32)
+        'comp': tf.io.FixedLenFeature([71,], tf.float32),
+        'raw': tf.io.FixedLenFeature([71,], tf.float32)
     }
     parsed_features = tf.io.parse_single_example(example_proto, features)
-    #print(parsed_features)
-    return parsed_features['x'], parsed_features['y']
-
-def read_tfrecords(file_names=("tf_records_0.tfrecord", "tf_records_1.tfrecord", "tf_records_2.tfrecord"),
-                   buffer_size=10000,
-                   batch_size=100):
-  dataset = tf.contrib.data.TFRecordDataset(file_names)
-  #dataset = dataset.map(parse_proto)
-  dataset = dataset.shuffle(buffer_size)
-  dataset = dataset.repeat()
- # dataset = dataset.batch(batch_size)
-  return tf.contrib.data.Iterator.from_structure(dataset.output_types, dataset.output_shapes)
+    return parsed_features['comp'], parsed_features['raw']
 
 def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_idx=0):
 
@@ -166,93 +156,61 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
     else:
         print("NP array files already exist, proceeding as usual...")
 
-
+    filenames = []
+    total_size = 0
     # convert to TFRecord
-    for i in range(89):
-        if(i == 1):
-            break
+    for i in range(84):
+        #if(i == 3):
+        #    break
+        total_file = np.load(f"data_array_{i}.npz")
+        raw_arr = total_file['arr_0'][0]
+        total_size = total_size + raw_arr.shape[0]
+
+        filenames.append(f"tf_records_{i}.tfrecordz")
         if(os.path.exists(f"tf_records_{i}.tfrecordz")):
             print("TFRecord File Already Exists...")
             continue
         total_file = np.load(f"data_array_{i}.npz")
-        raw_arr = total_file['arr_0'][0]
+        #raw_arr = total_file['arr_0'][0]
         comp_arr = total_file['arr_0'][1]
-        print(comp_arr.shape)
         array_to_tfrecords(comp_arr, raw_arr, f"tf_records_{i}.tfrecordz")
 
-    #zzz = read_tfrecords()
-    newds = tf.compat.v2.data.TFRecordDataset(
-#        ("tf_records_0.tfrecordz", "tf_records_1.tfrecordz", "tf_records_2.tfrecordz"),
-        ("tf_records_0.tfrecordz"),
-        compression_type="GZIP"
-    )
-    buffer_size = 1000
-    batch_size = 2
+    print(f"TOTAL NUMBER OF EXAMPLES: {total_size}")
+
+    # Shuffle the files to prevent grouping
+    random.shuffle(filenames)
+
+    newds = tf.compat.v2.data.TFRecordDataset(filenames, compression_type="GZIP")
+    buffer_size = 50000
+    batch_size = 512
 
     newds = newds.map(parse_proto)
     newds = newds.shuffle(buffer_size)
     newds = newds.repeat()
-    newds = newds.batch(batch_size)
-    ds_it = iter(newds)
-
-    #x, y = parse_proto(next(ds_it))
-    #ds_it = tf.contrib.data.Iterator.from_structure(newds.output_types, newds.output_shapes)
-    #print(x)
-    #print(y)
-    print(newds)
-    print(ds_it)
-    batch1 = next(ds_it)
-    print(batch1)
-    #print(str(zzz))
-    # for raw_record in newds.take(1):
-    #     example = tf.train.Example()
-    #     example.ParseFromString(raw_record.numpy())
-    #     print(example)
-
-    return
-
-    raw_arr = np.load(raw_array_path)
-    comp_arr = np.load(comp_array_path)
-    
-    n_x = len(raw_arr[:,0])
-
-   # raw_arr_norm = tf.keras.utils.normalize(raw_arr, axis=1)
-    raw_arr_norm = raw_arr
-    comp_arr_norm = comp_arr / 255
-
-    raw_arr_norm = raw_arr_norm.T
-    comp_arr_norm = comp_arr_norm.T
-
-    raw_arr_norm_backup = raw_arr_norm
-    comp_arr_norm_backup = comp_arr_norm
-
-    raw_arr_norm = raw_arr_norm[:, None, :]
-    comp_arr_norm = comp_arr_norm[:, None, :]
-
-    comp_train = comp_arr_norm
-    raw_train = raw_arr_norm
+    newds = newds.batch(batch_size, drop_remainder=True)
+    #ds_it = iter(newds)
 
     def model_create(example_length):
-        inputs = keras.Input(shape=(1, example_length, ), name="in")
-        #x = layers.Dense(1500, activation="relu", name="dense_1")(inputs)
-        x = layers.Conv1D(filters=50, kernel_size=5, strides=1, padding='same', activation='relu' ,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
+        inputs = keras.Input(shape=(example_length, ), name="in")
+        x = layers.Dense(1500, activation="relu", name="dense_1")(inputs)
+        #x = layers.Conv1D(filters=50, kernel_size=5, strides=1, padding='same', activation='relu' ,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
      #   x = layers.Conv1D(filters=50, kernel_size=5, strides=2, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(x)
       #  x = layers.Dense(1000, activation="relu", name="dense_1")(inputs)
       #  x = layers.BatchNormalization(name="batch_norm_1")(x)
-        x = layers.Dense(1000, activation="relu", name="dense_2")(x)
+        x = layers.Dense(1500, activation="relu", name="dense_2")(x)
         x = layers.BatchNormalization(name="batch_norm_1")(x)
-        x = layers.Dense(1000, activation="relu", name="dense_3")(x)
-        x = layers.Dense(1000, activation="relu", name="dense_4")(x)
+        x = layers.Dense(1500, activation="relu", name="dense_3")(x)
+        x = layers.Dense(1500, activation="relu", name="dense_4")(x)
        # x = layers.Dense(1000, activation="relu", kernel_regularizer=keras.regularizers.l2(0.002), name="dense_4")(x)
         x = layers.BatchNormalization(name="batch_norm_2")(x)
-        x = layers.Dense(1000, activation="relu", name="dense_5")(x)
+        x = layers.Dense(1500, activation="relu", name="dense_5")(x)
         #x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
-        x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None, data_format='channels_first', kernel_initializer='glorot_uniform')(x)
+    #    x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None, data_format='channels_first', kernel_initializer='glorot_uniform')(x)
         #outputs = layers.Dense(example_length, activation="tanh", name="out")(x)
         outputs = layers.Dense(example_length, name="out")(x)
         return keras.Model(inputs=inputs, outputs=outputs)
 
-    model = model_create(n_x)
+    model = model_create(71)
 
     checkpoint_filepath = "./model_chk.hdf5"
     training = False
@@ -277,17 +235,22 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
         # List of metrics to monitor
         metrics=[keras.metrics.MeanSquaredError()])
 
+
+    STEPS_PER_EPOCH = math.floor(total_size / batch_size) - 100
+    print(f"STEPS PER EPOCH: {STEPS_PER_EPOCH}")
+
     if training is True:
-        batch_size = 128
-        epochs = 100
+       # batch_size = 128
+        epochs = 5
         checkpoint = keras.callbacks.ModelCheckpoint(checkpoint_filepath, monitor='loss', verbose=0, save_best_only=True, mode='min')
         callbacks_list = [checkpoint]
-        history = model.fit(comp_train, raw_train,
-                    batch_size=batch_size, # 128
+        history = model.fit(newds,
+                   # batch_size=batch_size, # 128
+                    steps_per_epoch=STEPS_PER_EPOCH,
                     epochs=epochs, # 100
                     # Let 20% of the training data be used for 
                     # our deveset
-                    validation_split=.15,
+                  #  validation_split=.15,
                     # Have this callback for checkpointing our model
                     callbacks=callbacks_list)
         hist_loss = history.history['loss']
@@ -298,6 +261,7 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
         if show is True:
             plt.show()
 
+    # TODO: Fix this code
     if plot is True:
         which_num = plot_idx
         comp_re = np.reshape(comp_train[which_num], (1,1, 71))
@@ -330,12 +294,33 @@ if __name__=="__main__":
         save=False,
         plot_idx=25016)
 
+   # raw, comp = next(ds_it)
 
+    #print(raw)
+    #print(comp)
 
+   # return
 
+   # raw_arr = np.load(raw_array_path)
+   # comp_arr = np.load(comp_array_path)
+    
+   # n_x = len(raw_arr[:,0])
 
+   # raw_arr_norm = tf.keras.utils.normalize(raw_arr, axis=1)
+  #  raw_arr_norm = raw_arr
+  #  comp_arr_norm = comp_arr / 255
+#
+  #  raw_arr_norm = raw_arr_norm.T
+ #   comp_arr_norm = comp_arr_norm.T
 
+ #   raw_arr_norm_backup = raw_arr_norm
+ #   comp_arr_norm_backup = comp_arr_norm
 
+  #  raw_arr_norm = raw_arr_norm[:, None, :]
+ #   comp_arr_norm = comp_arr_norm[:, None, :]
+
+  #  comp_train = comp_arr_norm
+ #   raw_train = raw_arr_norm
 
 
 
