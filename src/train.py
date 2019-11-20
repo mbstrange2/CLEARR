@@ -124,7 +124,6 @@ def array_to_tfrecords(comp, raw, output_file):
         for j in range(comp.shape[0]):
             comp_row = comp[j]
             raw_row = raw[j]
-            #raw_row = tf.keras.utils.normalize(raw_row)
             features = {
                 'comp': tf.train.Feature(float_list=tf.train.FloatList(value=comp_row.flatten())),
                 'raw': tf.train.Feature(float_list=tf.train.FloatList(value=raw_row.flatten()))
@@ -139,7 +138,13 @@ def parse_proto(example_proto):
         'raw': tf.io.FixedLenFeature([71,], tf.float32)
     }
     parsed_features = tf.io.parse_single_example(example_proto, features)
-    return parsed_features['comp'], parsed_features['raw']
+    comp_arr = parsed_features['comp']
+    raw_arr = parsed_features['raw']
+    #comp_arr_norm = tf.math.l2_normalize(comp_arr)
+    raw_arr_norm = tf.divide(tf.subtract(raw_arr, tf.reduce_min(raw_arr)), 
+                            tf.subtract(tf.reduce_max(raw_arr), tf.reduce_min(raw_arr))
+                        )
+    return comp_arr, raw_arr_norm
 
 def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_idx=0):
 
@@ -157,32 +162,47 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
         print("NP array files already exist, proceeding as usual...")
 
     filenames = []
-    total_size = 0
+    num_train = 84
     # convert to TFRecord
-    for i in range(84):
-        #if(i == 3):
-        #    break
-        total_file = np.load(f"data_array_{i}.npz")
-        raw_arr = total_file['arr_0'][0]
-        total_size = total_size + raw_arr.shape[0]
+    if os.path.exists("./file_sizes.npy") is False:
+        print("Creating file array...")
+        size_arr = np.zeros(num_train)
+        for i in range(num_train):
+            #if(i == 3):
+            #    break
+            total_file = np.load(f"data_array_{i}.npz")
+            raw_arr = total_file['arr_0'][0]
+            size_arr[i] = int(raw_arr.shape[0])
+            filenames.append(f"tf_records_{i}.tfrecordz")
+            if(os.path.exists(f"tf_records_{i}.tfrecordz")):
+                print(f"TFRecord {i} File Already Exists...")
+                continue
+            total_file = np.load(f"data_array_{i}.npz")
+            comp_arr = total_file['arr_0'][1]
+            array_to_tfrecords(comp_arr, raw_arr, f"tf_records_{i}.tfrecordz")
+        np.save("./file_sizes.npy", size_arr)
+    else:
+        print("File array already exists, loading...")
+        size_arr = np.load("./file_sizes.npy")
 
-        filenames.append(f"tf_records_{i}.tfrecordz")
-        if(os.path.exists(f"tf_records_{i}.tfrecordz")):
-            print("TFRecord File Already Exists...")
-            continue
-        total_file = np.load(f"data_array_{i}.npz")
-        #raw_arr = total_file['arr_0'][0]
-        comp_arr = total_file['arr_0'][1]
-        array_to_tfrecords(comp_arr, raw_arr, f"tf_records_{i}.tfrecordz")
+    num_use = 3
+    #file_idx = list(range(num_train))
+    # Shuffle the files to prevent grouping
+    #random.shuffle(file_idx)
+    file_idx = [54, 10, 32]
+    final_files = []
+    total_size = 0
+    for i in range(num_use):
+        final_files.append(f"tf_records_{file_idx[i]}.tfrecordz")
+        # Accumulate the number of examples in each file
+        total_size += int(size_arr[file_idx[i]])
 
+    print(f"Files for training: {final_files}")
     print(f"TOTAL NUMBER OF EXAMPLES: {total_size}")
 
-    # Shuffle the files to prevent grouping
-    random.shuffle(filenames)
-
-    newds = tf.compat.v2.data.TFRecordDataset(filenames, compression_type="GZIP")
-    buffer_size = 50000
-    batch_size = 512
+    newds = tf.compat.v2.data.TFRecordDataset(final_files, compression_type="GZIP")
+    buffer_size = 3000000
+    batch_size = 256
 
     newds = newds.map(parse_proto)
     newds = newds.shuffle(buffer_size)
@@ -192,18 +212,18 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
 
     def model_create(example_length):
         inputs = keras.Input(shape=(example_length, ), name="in")
-        x = layers.Dense(1500, activation="relu", name="dense_1")(inputs)
+        x = layers.Dense(2000, activation="relu", name="dense_1")(inputs)
         #x = layers.Conv1D(filters=50, kernel_size=5, strides=1, padding='same', activation='relu' ,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
      #   x = layers.Conv1D(filters=50, kernel_size=5, strides=2, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(x)
       #  x = layers.Dense(1000, activation="relu", name="dense_1")(inputs)
       #  x = layers.BatchNormalization(name="batch_norm_1")(x)
-        x = layers.Dense(1500, activation="relu", name="dense_2")(x)
+        x = layers.Dense(2000, activation="relu", name="dense_2")(x)
         x = layers.BatchNormalization(name="batch_norm_1")(x)
-        x = layers.Dense(1500, activation="relu", name="dense_3")(x)
-        x = layers.Dense(1500, activation="relu", name="dense_4")(x)
+        x = layers.Dense(2000, activation="relu", name="dense_3")(x)
+        x = layers.Dense(2000, activation="relu", name="dense_4")(x)
        # x = layers.Dense(1000, activation="relu", kernel_regularizer=keras.regularizers.l2(0.002), name="dense_4")(x)
         x = layers.BatchNormalization(name="batch_norm_2")(x)
-        x = layers.Dense(1500, activation="relu", name="dense_5")(x)
+        x = layers.Dense(2000, activation="relu", name="dense_5")(x)
         #x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
     #    x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None, data_format='channels_first', kernel_initializer='glorot_uniform')(x)
         #outputs = layers.Dense(example_length, activation="tanh", name="out")(x)
@@ -237,11 +257,11 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
 
 
     STEPS_PER_EPOCH = math.floor(total_size / batch_size) - 100
-    print(f"STEPS PER EPOCH: {STEPS_PER_EPOCH}")
+    #print(f"STEPS PER EPOCH: {STEPS_PER_EPOCH}")
 
     if training is True:
        # batch_size = 128
-        epochs = 5
+        epochs = 15
         checkpoint = keras.callbacks.ModelCheckpoint(checkpoint_filepath, monitor='loss', verbose=0, save_best_only=True, mode='min')
         callbacks_list = [checkpoint]
         history = model.fit(newds,
@@ -257,31 +277,45 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
         plt.figure()
         plt.title('Loss vs epoch...')
         plt.plot(hist_loss)
-        plt.savefig(f"../img/loss_batch_size_{batch_size}_epochs_{epochs}.png")
+        plt.savefig(f"./img/loss_batch_size_{batch_size}_epochs_{epochs}.png")
         if show is True:
             plt.show()
 
+    newds_iter = iter(newds)
+    example = next(newds_iter)
+    #print(example)
+    example_comp = example[0][0]
+    example_raw = example[1][0]
+    #print(example_comp[0])
+    #print(example_raw)
+
     # TODO: Fix this code
     if plot is True:
-        which_num = plot_idx
-        comp_re = np.reshape(comp_train[which_num], (1,1, 71))
+
+        #which_num = plot_idx
+        comp_re = np.reshape(example_comp, (1, 71))
+        #print(example_comp.shape)
         predicted = model.predict(comp_re)
         predicted = predicted.reshape((71,1))
         plt.figure()
         plt.title('Compressed...')
-        plt.plot(comp_arr_norm_backup[which_num])
+        plt.plot(example_comp)
         if save is True:
-            plt.savefig(f"../img/compressed_{which_num}.png")
+            plt.savefig(f"../img/compressed_example.png")
+            #plt.savefig(f"../img/compressed_example{which_num}.png")
         plt.figure()
         plt.title('Recon...')
         plt.plot(predicted)
         if save is True:
-            plt.savefig(f"../img/reconstructed_{which_num}.png")
+            plt.savefig(f"../img/reconstructed_example.png")
+            #plt.savefig(f"../img/reconstructed_{which_num}.png")
         plt.figure()
         plt.title('Raw...')
-        plt.plot(raw_arr_norm_backup[which_num])
+        plt.plot(example_raw)
+        #plt.plot(raw_arr_norm_backup[which_num])
         if save is True:
-            plt.savefig(f"../img/actual_{which_num}.png")
+            plt.savefig(f"../img/actual_example.png")
+            #plt.savefig(f"../img/actual_{which_num}.png")
         if show is True:
             plt.show()
 
