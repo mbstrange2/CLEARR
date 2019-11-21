@@ -75,7 +75,7 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
                     jj = 0
                     for ii in range(raw_input_np.shape[0]):
                         #if((raw_input_np[ii][0] != 0)):
-                        if((raw_input_np[ii][0] != 0) and (np.ptp(comp_input_np[ii][1:]) > 10)):
+                        if((raw_input_np[ii][0] != 0) and (np.ptp(comp_input_np[ii][1:]) > 24)):
                             raw_input_collapsed[jj] = raw_input_np[ii][1:]
                             comp_input_collapsed[jj] = comp_input_np[ii][1:]
                             jj = jj + 1
@@ -141,9 +141,12 @@ def parse_proto(example_proto):
     comp_arr = parsed_features['comp']
     raw_arr = parsed_features['raw']
     #comp_arr_norm = tf.math.l2_normalize(comp_arr)
-    raw_arr_norm = tf.divide(tf.subtract(raw_arr, tf.reduce_min(raw_arr)), 
-                            tf.subtract(tf.reduce_max(raw_arr), tf.reduce_min(raw_arr))
-                        )
+    #raw_arr_norm = tf.divide(tf.subtract(raw_arr, tf.reduce_min(raw_arr)), 
+    #                        tf.subtract(tf.reduce_max(raw_arr), tf.reduce_min(raw_arr))
+    #                    )
+    raw_arr_norm = raw_arr
+    comp_arr = comp_arr[None, :]
+    raw_arr_norm = raw_arr_norm[None, :]
     return comp_arr, raw_arr_norm
 
 def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_idx=0):
@@ -185,11 +188,11 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
         print("File array already exists, loading...")
         size_arr = np.load("./file_sizes.npy")
 
-    num_use = 3
+    num_use = 1
     #file_idx = list(range(num_train))
     # Shuffle the files to prevent grouping
     #random.shuffle(file_idx)
-    file_idx = [54, 10, 32]
+    file_idx = [54]#[54, 10, 32]
     final_files = []
     total_size = 0
     for i in range(num_use):
@@ -200,32 +203,34 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
     print(f"Files for training: {final_files}")
     print(f"TOTAL NUMBER OF EXAMPLES: {total_size}")
 
-    newds = tf.compat.v2.data.TFRecordDataset(final_files, compression_type="GZIP")
+    newds = tf.compat.v2.data.TFRecordDataset(final_files, compression_type="GZIP", num_parallel_reads=16)
     buffer_size = 3000000
     batch_size = 256
 
-    newds = newds.map(parse_proto)
+    newds = newds.map(parse_proto, num_parallel_calls=tf.data.experimental.AUTOTUNE)
     newds = newds.shuffle(buffer_size)
     newds = newds.repeat()
     newds = newds.batch(batch_size, drop_remainder=True)
+    newds = newds.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
     #ds_it = iter(newds)
 
     def model_create(example_length):
-        inputs = keras.Input(shape=(example_length, ), name="in")
-        x = layers.Dense(2000, activation="relu", name="dense_1")(inputs)
-        #x = layers.Conv1D(filters=50, kernel_size=5, strides=1, padding='same', activation='relu' ,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
+
+        inputs = keras.Input(shape=(1, example_length, ), name="in")
+        #x = layers.Dense(1500, activation="relu", name="dense_1")(inputs)
+        x = layers.Conv1D(filters=50, kernel_size=5, strides=1, padding='same', activation='relu' ,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
      #   x = layers.Conv1D(filters=50, kernel_size=5, strides=2, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(x)
       #  x = layers.Dense(1000, activation="relu", name="dense_1")(inputs)
       #  x = layers.BatchNormalization(name="batch_norm_1")(x)
-        x = layers.Dense(2000, activation="relu", name="dense_2")(x)
+        x = layers.Dense(1500, activation="relu", name="dense_2")(x)
         x = layers.BatchNormalization(name="batch_norm_1")(x)
-        x = layers.Dense(2000, activation="relu", name="dense_3")(x)
-        x = layers.Dense(2000, activation="relu", name="dense_4")(x)
+        x = layers.Dense(1500, activation="relu", name="dense_3")(x)
+        x = layers.Dense(1500, activation="relu", name="dense_4")(x)
        # x = layers.Dense(1000, activation="relu", kernel_regularizer=keras.regularizers.l2(0.002), name="dense_4")(x)
         x = layers.BatchNormalization(name="batch_norm_2")(x)
-        x = layers.Dense(2000, activation="relu", name="dense_5")(x)
+        x = layers.Dense(1500, activation="relu", name="dense_5")(x)
         #x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
-    #    x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None, data_format='channels_first', kernel_initializer='glorot_uniform')(x)
+        x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None, data_format='channels_first', kernel_initializer='glorot_uniform')(x)
         #outputs = layers.Dense(example_length, activation="tanh", name="out")(x)
         outputs = layers.Dense(example_length, name="out")(x)
         return keras.Model(inputs=inputs, outputs=outputs)
@@ -261,7 +266,7 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
 
     if training is True:
        # batch_size = 128
-        epochs = 15
+        epochs = 3
         checkpoint = keras.callbacks.ModelCheckpoint(checkpoint_filepath, monitor='loss', verbose=0, save_best_only=True, mode='min')
         callbacks_list = [checkpoint]
         history = model.fit(newds,
@@ -283,23 +288,20 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
 
     newds_iter = iter(newds)
     example = next(newds_iter)
-    #print(example)
-    example_comp = example[0][0]
-    example_raw = example[1][0]
-    #print(example_comp[0])
-    #print(example_raw)
+    example_comp = example[0][155]
+    example_raw = example[1][155]
 
-    # TODO: Fix this code
+
     if plot is True:
 
         #which_num = plot_idx
-        comp_re = np.reshape(example_comp, (1, 71))
+        comp_re = np.reshape(example_comp, (1, 1, 71))
         #print(example_comp.shape)
         predicted = model.predict(comp_re)
         predicted = predicted.reshape((71,1))
         plt.figure()
         plt.title('Compressed...')
-        plt.plot(example_comp)
+        plt.plot(np.reshape(example_comp, (71, 1)))
         if save is True:
             plt.savefig(f"../img/compressed_example.png")
             #plt.savefig(f"../img/compressed_example{which_num}.png")
@@ -311,7 +313,7 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
             #plt.savefig(f"../img/reconstructed_{which_num}.png")
         plt.figure()
         plt.title('Raw...')
-        plt.plot(example_raw)
+        plt.plot(np.reshape(example_raw, (71,1)))
         #plt.plot(raw_arr_norm_backup[which_num])
         if save is True:
             plt.savefig(f"../img/actual_example.png")
@@ -327,6 +329,36 @@ if __name__=="__main__":
         show=True,
         save=False,
         plot_idx=25016)
+
+
+
+
+
+
+    #     inputs = keras.Input(shape=(example_length, ), name="in")
+    #     x = layers.Dense(2000, activation="relu", name="dense_1")(inputs)
+    #     #x = layers.Conv1D(filters=50, kernel_size=5, strides=1, padding='same', activation='relu' ,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
+    #  #   x = layers.Conv1D(filters=50, kernel_size=5, strides=2, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(x)
+    #   #  x = layers.Dense(1000, activation="relu", name="dense_1")(inputs)
+    #   #  x = layers.BatchNormalization(name="batch_norm_1")(x)
+    #     x = layers.Dense(2000, activation="relu", name="dense_2")(x)
+    #   #  x = layers.BatchNormalization(name="batch_norm_1")(x)
+    #     x = layers.Dense(2000, activation="relu", name="dense_3")(x)
+    #     x = layers.Dense(2000, activation="relu", name="dense_4")(x)
+    #    # x = layers.Dense(1000, activation="relu", kernel_regularizer=keras.regularizers.l2(0.002), name="dense_4")(x)
+    #   #  x = layers.BatchNormalization(name="batch_norm_2")(x)
+    #     x = layers.Dense(2000, activation="relu", name="dense_5")(x)
+    #     #x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
+    # #    x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None, data_format='channels_first', kernel_initializer='glorot_uniform')(x)
+    #     #outputs = layers.Dense(example_length, activation="tanh", name="out")(x)
+
+
+
+
+
+
+
+
 
    # raw, comp = next(ds_it)
 
