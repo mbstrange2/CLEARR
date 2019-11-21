@@ -56,6 +56,9 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
             compressed_path = compressed_path.replace("spikes", "spike", 1) # Small file naming error
             #print(compressed_path)
             if os.path.exists(compressed_path):
+                #print("NEW PATH")
+                print_rail = 1
+                print_mid = 1
                 #print(f"Processing {full_path}")
                 print(f"File number: {file_num}")
                 file_num = file_num + 1
@@ -70,15 +73,26 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
                 if(len(raw_input_np.shape) > 1):
                     raw_input_collapsed = np.zeros((raw_input_np.shape[0], raw_input_np.shape[1]-1))
                     comp_input_collapsed = np.zeros((raw_input_np.shape[0], raw_input_np.shape[1]-1))
-                #print(raw_input_collapsed.shape)
 
                     jj = 0
                     for ii in range(raw_input_np.shape[0]):
-                        #if((raw_input_np[ii][0] != 0)):
-                        if((raw_input_np[ii][0] != 0) and (np.ptp(comp_input_np[ii][1:]) > 24)):
+                        if((raw_input_np[ii][0] != 0) and (np.ptp(comp_input_np[ii][1:]) > 30)):
+                            lt_25_or_gt_230 = 0 # Now check to make sure it's not railing the whole time...
+                            for kk in range(71):
+                                if (comp_input_np[ii][kk+1] < 25) or (comp_input_np[ii][kk+1] > 230):
+                                    lt_25_or_gt_230 += 1
+                            if(lt_25_or_gt_230 > 50): # If the data is garbage...skip it
+                                if print_rail == 1:
+                                    print(f"Railed data...skipping")
+                                    print_rail = 0
+                                continue
                             raw_input_collapsed[jj] = raw_input_np[ii][1:]
                             comp_input_collapsed[jj] = comp_input_np[ii][1:]
                             jj = jj + 1
+                        else:
+                            if(print_mid == 1):
+                                print("Midrail...skipping")
+                                print_mid = 0
 
                     raw_input_collapsed = raw_input_collapsed[0:jj, :]
                     comp_input_collapsed = comp_input_collapsed[0:jj, :]
@@ -115,6 +129,8 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
                         check_num = check_num + 1
                         raw_list = []
                         comp_list = []
+                else:
+                    print("Skipping for other reasons...")
 
             else:
                 print("Raw path exists, but compressed path does: " + str(full_path))
