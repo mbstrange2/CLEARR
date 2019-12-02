@@ -26,7 +26,7 @@ def filter_data_files(item):
 tf.executing_eagerly()
 
 def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_path):
-
+    print_now = 1
     # Put the spikes and electrode number in here...
     raw_list = []
     comp_list = []
@@ -40,32 +40,35 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
     subfolders = [f.path for f in os.scandir(raw_path) if f.is_dir()]   
     #print(str(subfolders))
     for qqq in range(len(subfolders)):
+        print(f"FOLDER: {qqq}")
         data_files = os.listdir(subfolders[qqq]) 
         subfiles = os.listdir(subfolders[qqq])
         subfiles_filtered = filter(filter_data_files, subfiles)
         for p in subfiles_filtered:
+        #    if "electrode_6_" not in p:
+        #        continue
+
             full_path = os.path.join(subfolders[qqq], p)
-           # print(full_path)
+            #print(full_path)
             compressed_tokens = full_path.split("data000")
             electrode_num = int(compressed_tokens[1].split("_")[2])
             if(electrode_num in ignore_list):
                 print(f"ignoring electrode: {electrode_num}")
                 continue
 
+
+
             compressed_path = compressed_tokens[0] + "data000Compressed" + compressed_tokens[1]
             compressed_path = compressed_path.replace("spikes", "spike", 1) # Small file naming error
-            #print(compressed_path)
             if os.path.exists(compressed_path):
+                print(f"P: {p}")
                 #print("NEW PATH")
-                print_rail = 1
-                print_mid = 1
-                #print(f"Processing {full_path}")
                 print(f"File number: {file_num}")
                 file_num = file_num + 1
                 raw_inputs = loadmat(full_path)
-                raw_arr = raw_inputs["spikeArr"].squeeze()
+                raw_arr = raw_inputs["spikeArr"]#.squeeze()
                 comp_inputs = loadmat(compressed_path)
-                comp_arr = comp_inputs["spikeArr"].squeeze()
+                comp_arr = comp_inputs["spikeArr"]#.squeeze()
                 raw_input_np = np.asarray(raw_arr).T
                 #print(raw_input_np.shape)
                 comp_input_np = np.asarray(comp_arr).T
@@ -76,23 +79,35 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
 
                     jj = 0
                     for ii in range(raw_input_np.shape[0]):
-                        if((raw_input_np[ii][0] != 0) and (np.ptp(comp_input_np[ii][1:]) > 30)):
-                            lt_25_or_gt_230 = 0 # Now check to make sure it's not railing the whole time...
-                            for kk in range(71):
-                                if (comp_input_np[ii][kk+1] < 25) or (comp_input_np[ii][kk+1] > 230):
-                                    lt_25_or_gt_230 += 1
-                            if(lt_25_or_gt_230 > 50): # If the data is garbage...skip it
-                                if print_rail == 1:
-                                    print(f"Railed data...skipping")
-                                    print_rail = 0
-                                continue
+                        #print(f"Number of zeros: {np.sum(comp_input_np[ii, 1:] == 0)}")
+                        if (raw_input_np[ii][0] != 0 and (np.ptp(comp_input_np[ii, 1:]) > 4)): # and (np.sum(comp_input_np[ii, 1:] == 0) > 60):
                             raw_input_collapsed[jj] = raw_input_np[ii][1:]
                             comp_input_collapsed[jj] = comp_input_np[ii][1:]
+                            if(jj == 58):
+
+                                print(f" at jj==65, ii is {ii}, spike is {raw_input_np[ii][0]}, {comp_input_np[ii][0]}, enum: {electrode_num}")
+                                if print_now == 1:
+                                    plt.figure()
+                                    plt.title('Raw...pre')
+                                    plt.plot(np.reshape(raw_input_collapsed[jj], (71, 1)))
+                                    plt.figure()
+                                    plt.title('Comp...pre')
+                                    plt.plot(np.reshape(comp_input_collapsed[jj], (71, 1)))
+                                    print_now = 0
+                                #plt.show()
+                            #plt.figure()
+                            #plt.title('Raw...')
+                            #plt.plot(np.reshape(raw_input_collapsed[jj], (71,1)))
+
+                            #plt.figure()
+                            #plt.title('Comp...')
+                            #plt.plot(np.reshape(comp_input_collapsed[jj], (71,1)))
+                            #plt.show()
+
                             jj = jj + 1
                         else:
-                            if(print_mid == 1):
-                                print("Midrail...skipping")
-                                print_mid = 0
+                            ppp = 1
+                            #print(f"Skipped at {ii}")
 
                     raw_input_collapsed = raw_input_collapsed[0:jj, :]
                     comp_input_collapsed = comp_input_collapsed[0:jj, :]
@@ -100,12 +115,14 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
                     raw_list.append(raw_input_collapsed)
                     comp_list.append(comp_input_collapsed)
 
-                    if(len(raw_list) == 100):
+                    if(len(raw_list) == 1):
+                    #if(len(raw_list) == 100):
                         len_sum = 0
                         lens = []
 
                         for i in range(len(raw_list)):
                             temp_len = raw_list[i].shape[0]
+                            print(f"LEN {i} : {temp_len}")
                             len_sum = len_sum + temp_len
                             lens.append(temp_len)
 
@@ -116,6 +133,15 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
                         for i in range(len(raw_list)):
                             if(lens[i] == 0):
                                 continue
+                            #plt.figure()
+                            #plt.title('Raw...')
+                            #plt.plot(np.reshape(raw_list[i][0], (71,1)))
+
+                            #plt.figure()
+                            #plt.title('Comp...')
+                            #plt.plot(np.reshape(comp_list[i][0], (71,1)))
+                            #plt.show()
+
                             final_np_raw[tracker:tracker+lens[i], :] = raw_list[i]
                             final_np_comp[tracker:tracker+lens[i], :] = comp_list[i]
                             tracker = tracker + lens[i]
@@ -125,6 +151,7 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
                         else:
                             # first array is the raw, second is the compressed
                             np.savez_compressed(raw_array_path + f"_{check_num}.npz", (final_np_raw, final_np_comp))
+                            return
 
                         check_num = check_num + 1
                         raw_list = []
@@ -133,7 +160,9 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
                     print("Skipping for other reasons...")
 
             else:
-                print("Raw path exists, but compressed path does: " + str(full_path))
+                #print("Raw path exists, but compressed path doesn't: " + str(full_path))
+                xy = 1
+        break
 
 def array_to_tfrecords(comp, raw, output_file):
     with tf.io.TFRecordWriter(output_file, options="GZIP") as writer:
@@ -161,8 +190,8 @@ def parse_proto(example_proto):
     #                        tf.subtract(tf.reduce_max(raw_arr), tf.reduce_min(raw_arr))
     #                    )
     raw_arr_norm = raw_arr
-    comp_arr = comp_arr[None, :]
-    raw_arr_norm = raw_arr_norm[None, :]
+    #comp_arr = comp_arr[None, :]
+    #raw_arr_norm = raw_arr_norm[None, :]
     return comp_arr, raw_arr_norm
 
 def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_idx=0):
@@ -174,14 +203,17 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
     raw_array_path = "./data_array"
     comp_array_path = "./comp_array"
 
-    if not os.path.exists(raw_array_path + "_88.npz")  or remake is True:
+    if remake is True:
+    #if not os.path.exists(raw_array_path + "_0.npz")  or remake is True:
         print("np files don't exist, creating now...")
         reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_path)
     else:
         print("NP array files already exist, proceeding as usual...")
 
+    #return
+
     filenames = []
-    num_train = 84
+    num_train = 1
     # convert to TFRecord
     if os.path.exists("./file_sizes.npy") is False:
         print("Creating file array...")
@@ -205,10 +237,10 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
         size_arr = np.load("./file_sizes.npy")
 
     num_use = 1
-    #file_idx = list(range(num_train))
+    file_idx = list(range(num_use))
     # Shuffle the files to prevent grouping
-    #random.shuffle(file_idx)
-    file_idx = [54]#[54, 10, 32]
+    random.shuffle(file_idx)
+    file_idx = [0]#[54, 10, 32]
     final_files = []
     total_size = 0
     for i in range(num_use):
@@ -224,29 +256,33 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
     batch_size = 256
 
     newds = newds.map(parse_proto, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-    newds = newds.shuffle(buffer_size)
+    #newds = newds.shuffle(buffer_size)
     newds = newds.repeat()
-    newds = newds.batch(batch_size, drop_remainder=True)
+    newds = newds.batch(batch_size) #, drop_remainder=True)
     newds = newds.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
     #ds_it = iter(newds)
 
     def model_create(example_length):
 
-        inputs = keras.Input(shape=(1, example_length, ), name="in")
-        #x = layers.Dense(1500, activation="relu", name="dense_1")(inputs)
-        x = layers.Conv1D(filters=50, kernel_size=5, strides=1, padding='same', activation='relu' ,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
-     #   x = layers.Conv1D(filters=50, kernel_size=5, strides=2, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(x)
+        #inputs = keras.Input(shape=(1, example_length, ), name="in")
+        inputs = keras.Input(shape=(example_length, ), name="in")
+        x = layers.Dense(2500, activation="relu", name="dense_1")(inputs)
+        #x = layers.Conv1D(filters=50, kernel_size=5, strides=1, padding='same', activation='relu', 
+        #data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
+        #x = keras.layers.MaxPooling1D(pool_size=2, strides=1, padding='valid')(x)
+     #   x = layers.Conv1D(filters=50, kernel_size=5, strides=2, padding='same', activation=None,data_format='channels_first', 
+     # use_bias=True, kernel_initializer='glorot_uniform')(x)
       #  x = layers.Dense(1000, activation="relu", name="dense_1")(inputs)
       #  x = layers.BatchNormalization(name="batch_norm_1")(x)
-        x = layers.Dense(1500, activation="relu", name="dense_2")(x)
+        x = layers.Dense(2500, activation="relu", name="dense_2")(x)
         x = layers.BatchNormalization(name="batch_norm_1")(x)
-        x = layers.Dense(1500, activation="relu", name="dense_3")(x)
-        x = layers.Dense(1500, activation="relu", name="dense_4")(x)
+        x = layers.Dense(2500, activation="relu", name="dense_3")(x)
+        x = layers.Dense(2500, activation="relu", name="dense_4")(x)
        # x = layers.Dense(1000, activation="relu", kernel_regularizer=keras.regularizers.l2(0.002), name="dense_4")(x)
         x = layers.BatchNormalization(name="batch_norm_2")(x)
-        x = layers.Dense(1500, activation="relu", name="dense_5")(x)
+        x = layers.Dense(2500, activation="relu", name="dense_5")(x)
         #x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
-        x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None, data_format='channels_first', kernel_initializer='glorot_uniform')(x)
+       # x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None, data_format='channels_first', kernel_initializer='glorot_uniform')(x)
         #outputs = layers.Dense(example_length, activation="tanh", name="out")(x)
         outputs = layers.Dense(example_length, name="out")(x)
         return keras.Model(inputs=inputs, outputs=outputs)
@@ -277,12 +313,12 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
         metrics=[keras.metrics.MeanSquaredError()])
 
 
-    STEPS_PER_EPOCH = math.floor(total_size / batch_size) - 100
+    STEPS_PER_EPOCH = math.floor(total_size / batch_size) - 1
     #print(f"STEPS PER EPOCH: {STEPS_PER_EPOCH}")
 
     if training is True:
        # batch_size = 128
-        epochs = 3
+        epochs = 10
         checkpoint = keras.callbacks.ModelCheckpoint(checkpoint_filepath, monitor='loss', verbose=0, save_best_only=True, mode='min')
         callbacks_list = [checkpoint]
         history = model.fit(newds,
@@ -304,14 +340,17 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
 
     newds_iter = iter(newds)
     example = next(newds_iter)
-    example_comp = example[0][155]
-    example_raw = example[1][155]
-
+    #### PUMIAO + ANDREW - CHANGE THE SECOND INDEX
+    # PIC
+    pic = 58
+    example_comp = example[0][pic]
+    example_raw = example[1][pic]
 
     if plot is True:
 
         #which_num = plot_idx
-        comp_re = np.reshape(example_comp, (1, 1, 71))
+        comp_re = np.reshape(example_comp, (1, 71))
+        #comp_re = np.reshape(example_comp, (1, 1, 71))
         #print(example_comp.shape)
         predicted = model.predict(comp_re)
         predicted = predicted.reshape((71,1))
@@ -321,11 +360,11 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
         if save is True:
             plt.savefig(f"../img/compressed_example.png")
             #plt.savefig(f"../img/compressed_example{which_num}.png")
-        plt.figure()
-        plt.title('Recon...')
-        plt.plot(predicted)
-        if save is True:
-            plt.savefig(f"../img/reconstructed_example.png")
+        #plt.figure()
+        #plt.title('Recon...')
+        #plt.plot(predicted)
+        #if save is True:
+        #    plt.savefig(f"../img/reconstructed_example.png")
             #plt.savefig(f"../img/reconstructed_{which_num}.png")
         plt.figure()
         plt.title('Raw...')
@@ -339,8 +378,8 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
 
 if __name__=="__main__":
     train(
-        remake=False,
-        use_chk=False, 
+        remake=True,
+        use_chk=True, 
         plot=True, 
         show=True,
         save=False,

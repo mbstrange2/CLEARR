@@ -6,6 +6,8 @@ def rect_naive_tensor(array, array_in, num_bits, v_ref, samples_batch, idx_dim0,
     lsb = 2*v_ref/2**num_bits
     v_rn = (torch.min(array_in)//lsb)*lsb - lsb
     v_rp = (torch.max(array_in)//lsb)*lsb + lsb
+    #print(f"v_rn: {v_rn}")
+    #print(f"v_rp: {v_rp}")
     ramp = torch.linspace(v_rn, v_rp, int((v_rp-v_rn)/lsb + 1), device = cuda).type(torch.int16)
     ramp = ramp.view(ramp.shape[0],1,1,1)
     ramp_next = torch.linspace(v_rn+lsb, v_rp+lsb, int((v_rp-v_rn)/lsb + 1), device = cuda).type(torch.int16)
@@ -54,13 +56,13 @@ def rect_naive_interleaved_tensor(array, array_in, num_bits, v_ref, samples_batc
     v_rn = (torch.min(array_in)//lsb)*lsb - lsb
     v_rp = (torch.max(array_in)//lsb)*lsb + lsb
     v_r = max(abs(v_rn),abs(v_rp))
-    rampup = torch.linspace(-v_r, v_r, 2*v_r/lsb + 1, device = cuda).type(torch.int16)
+    rampup = torch.linspace(-v_r, v_r, int(2*v_r/lsb + 1), device = cuda).type(torch.int16)
     rampup = rampup.view(rampup.shape[0],1,1,1)
-    rampup_next = torch.linspace(-v_r+lsb, v_r+lsb, 2*v_r/lsb + 1, device = cuda).type(torch.int16)
+    rampup_next = torch.linspace(-v_r+lsb, v_r+lsb, int(2*v_r/lsb) + 1, device = cuda).type(torch.int16)
     rampup_next = rampup_next.view(rampup_next.shape[0],1,1,1)
-    rampdown = torch.linspace(v_r, -v_r, 2*v_r/lsb + 1, device = cuda).type(torch.int16)
+    rampdown = torch.linspace(v_r, -v_r, int(2*v_r/lsb + 1), device = cuda).type(torch.int16)
     rampdown = rampdown.view(rampdown.shape[0],1,1,1)
-    rampdown_next = torch.linspace(v_r+lsb, -v_r+lsb, 2*v_r/lsb + 1, device = cuda).type(torch.int16)
+    rampdown_next = torch.linspace(v_r+lsb, -v_r+lsb, int(2*v_r/lsb + 1), device = cuda).type(torch.int16)
     rampdown_next = rampdown_next.view(rampdown_next.shape[0],1,1,1)
     # create mask for up/down, create two comp tensors, combine them for validation but decode them separately
     maskup = torch.zeros(array[0], array[1], 1, device=cuda, dtype=torch.int16)
