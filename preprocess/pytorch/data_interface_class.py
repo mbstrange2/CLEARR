@@ -73,8 +73,8 @@ class io_object:
 
             # Extract first trigger delay time and duration to be written in header:
             trig_times = np.where(self.raw_data_batch[0,:]<0)[0]
-            self.first_trig_delay = trig_times[0]/self.fs # In seconds; Found Emperically
-            #self.first_trig_delay = .002#trig_times[0]/self.fs # In seconds; Found Emperically
+            #self.first_trig_delay = trig_times[0]/self.fs # In seconds; Found Emperically
+            self.first_trig_delay = .002#trig_times[0]/self.fs # In seconds; Found Emperically
             self.first_trig_interval = 1 # In samples
             for trig_ind in range(len(trig_times)-1):
                 if trig_times[trig_ind+1] - trig_times[trig_ind] == 1:
