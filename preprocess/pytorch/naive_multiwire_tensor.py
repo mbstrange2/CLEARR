@@ -88,10 +88,10 @@ def naive_multiwire_tensor(inp_file, save_path, time_window, chunk_size, num_bit
             naive_interp = interpolate_rawdata(naive_decoded, samples_batch, cuda, sigma=2)
 
             # save a few unaltered data samples for correct noise/threshold calcuation in Vision at the beginning
-            if batch_num < 2:
-                decoded_out = torch.einsum('ij->ji',(processed_data_mean,)).to('cpu').numpy().astype('int16')
-            else:
-                decoded_out = torch.einsum('ij->ji',(naive_interp,)).to('cpu').numpy().astype('int16')
+            #if batch_num < 5:
+            decoded_out = torch.einsum('ij->ji',(processed_data_mean,)).to('cpu').numpy().astype('int16')
+            #else:
+            #    decoded_out = torch.einsum('ij->ji',(naive_interp,)).to('cpu').numpy().astype('int16')
                 #diff_plot(processed_data_mean.to('cpu').numpy(), np.einsum('ij->ji',decoded_out), 1, batch_num)
 
             # save decoded data to .bin files
@@ -100,7 +100,7 @@ def naive_multiwire_tensor(inp_file, save_path, time_window, chunk_size, num_bit
             #print(run1.output_data_batch)
             #print(run1.output_data_batch[5,:])
             #
-            print(f"shape of run1 out data: {run1.output_data_batch.shape}")
+            #print(f"shape of run1 out data: {run1.output_data_batch.shape}")
             run1.output_data_batch = run1.output_data_batch / 16
             run1.output_data_batch = run1.output_data_batch.astype(int).T
             #print(f"Minimum: {np.amin(run1.output_data_batch)}")
@@ -112,7 +112,7 @@ def naive_multiwire_tensor(inp_file, save_path, time_window, chunk_size, num_bit
             #run1.generate_compressed_data()
             #run1.write_mat_file()
 
-            #if batch_num > 0:
+            #if batch_num >= 1000:
             #    return
 
             # save decoded data to .mat files
