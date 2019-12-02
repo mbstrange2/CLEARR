@@ -71,7 +71,7 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
 
                     jj = 0
                     for ii in range(raw_input_np.shape[0]):
-                        if (raw_input_np[ii][0] != 0 and (np.ptp(comp_input_np[ii, 1:]) > 1)): # and (np.sum(comp_input_np[ii, 1:] == 0) > 60):
+                        if (raw_input_np[ii][0] != 0 and (np.ptp(comp_input_np[ii, 1:]) > 2)): # and (np.sum(comp_input_np[ii, 1:] == 0) > 60):
                             raw_input_collapsed[jj] = raw_input_np[ii][1:]
                             comp_input_collapsed[jj] = comp_input_np[ii][1:]
                             jj = jj + 1
@@ -147,11 +147,11 @@ def parse_proto(example_proto):
     #                        tf.subtract(tf.reduce_max(raw_arr), tf.reduce_min(raw_arr))
     #                    )
     raw_arr_norm = raw_arr
-    #comp_arr = comp_arr[None, :]
-    #raw_arr_norm = raw_arr_norm[None, :]
+    comp_arr = comp_arr[None, :]
+    raw_arr_norm = raw_arr_norm[None, :]
     return comp_arr, raw_arr_norm
 
-def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_idx=0):
+def train(remake=False, use_chk=False, plot=False, show=False, save=False, epochs=1, plot_idx=0):
 
     raw_path = Path("C:/Users/Mek/DATA_TAR") 
     comp_path = Path("C:/Users/Mek/DATA_TAR")
@@ -167,10 +167,8 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
     else:
         print("NP array files already exist, proceeding as usual...")
 
-    #return
-
     filenames = []
-    num_train = 18
+    num_train = 30
     # convert to TFRecord
     if os.path.exists("./file_sizes.npy") is False:
         print("Creating file array...")
@@ -191,12 +189,12 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
         print("File array already exists, loading...")
         size_arr = np.load("./file_sizes.npy")
 
-    num_use = 18
-    file_idx = list(range(num_use))
+    num_use = 1
+    #file_idx = list(range(num_use))
     # Shuffle the files to prevent grouping
     #random.shuffle(file_idx)
 
-    #file_idx = [0]#[54, 10, 32]
+    file_idx = [0] #[54, 10, 32]
 
     final_files = []
     total_size = 0
@@ -221,26 +219,25 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
 
     def model_create(example_length):
 
-        #inputs = keras.Input(shape=(1, example_length, ), name="in")
-        inputs = keras.Input(shape=(example_length, ), name="in")
-        x = layers.Dense(2500, activation="relu", name="dense_1")(inputs)
-        #x = layers.Conv1D(filters=50, kernel_size=5, strides=1, padding='same', activation='relu', 
-        #data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
-        #x = keras.layers.MaxPooling1D(pool_size=2, strides=1, padding='valid')(x)
-     #   x = layers.Conv1D(filters=50, kernel_size=5, strides=2, padding='same', activation=None,data_format='channels_first', 
-     # use_bias=True, kernel_initializer='glorot_uniform')(x)
+        inputs = keras.Input(shape=(1, example_length, ), name="in")
+        #inputs = keras.Input(shape=(example_length, ), name="in")
+        #x = layers.Dense(2000, activation="relu", name="dense_1")(inputs)
+        x = layers.Conv1D(filters=50, kernel_size=5, strides=1, padding='same', activation='relu', 
+                data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
+        x = keras.layers.MaxPooling1D(pool_size=2, strides=2, padding='valid')(x)
+        x = layers.Conv1D(filters=50, kernel_size=3, strides=2, padding='same', activation='relu', data_format='channels_first', 
+                use_bias=True, kernel_initializer='glorot_uniform')(x)
+        x = keras.layers.MaxPooling1D(pool_size=2, strides=2, padding='valid')(x)
       #  x = layers.Dense(1000, activation="relu", name="dense_1")(inputs)
       #  x = layers.BatchNormalization(name="batch_norm_1")(x)
-        x = layers.Dense(2500, activation="relu", name="dense_2")(x)
+        x = layers.Dense(2000, activation="relu", name="dense_2")(x)
         x = layers.BatchNormalization(name="batch_norm_1")(x)
-        x = layers.Dense(2500, activation="relu", name="dense_3")(x)
-        x = layers.Dense(2500, activation="relu", name="dense_4")(x)
+        x = layers.Dense(2000, activation="relu", name="dense_4")(x)
        # x = layers.Dense(1000, activation="relu", kernel_regularizer=keras.regularizers.l2(0.002), name="dense_4")(x)
-        x = layers.BatchNormalization(name="batch_norm_2")(x)
-        x = layers.Dense(2500, activation="relu", name="dense_5")(x)
-        #x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
-       # x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None, data_format='channels_first', kernel_initializer='glorot_uniform')(x)
-        #outputs = layers.Dense(example_length, activation="tanh", name="out")(x)
+        #x = layers.BatchNormalization(name="batch_norm_2")(x)
+        x = layers.Dense(2000, activation="relu", name="dense_5")(x)
+        x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation='relu', data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(x)
+        #x = layers.Flatten(data_format="channels_last")(x)
         outputs = layers.Dense(example_length, name="out")(x)
         return keras.Model(inputs=inputs, outputs=outputs)
 
@@ -271,20 +268,14 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
 
 
     STEPS_PER_EPOCH = math.floor(total_size / batch_size) - 1
-    #print(f"STEPS PER EPOCH: {STEPS_PER_EPOCH}")
 
     if training is True:
-       # batch_size = 128
-        epochs = 1
         checkpoint = keras.callbacks.ModelCheckpoint(checkpoint_filepath, monitor='loss', verbose=0, save_best_only=True, mode='min')
         callbacks_list = [checkpoint]
         history = model.fit(newds,
                    # batch_size=batch_size, # 128
                     steps_per_epoch=STEPS_PER_EPOCH,
                     epochs=epochs, # 100
-                    # Let 20% of the training data be used for 
-                    # our deveset
-                  #  validation_split=.15,
                     # Have this callback for checkpointing our model
                     callbacks=callbacks_list)
         hist_loss = history.history['loss']
@@ -299,63 +290,42 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, plot_
     example = next(newds_iter)
     #### PUMIAO + ANDREW - CHANGE THE SECOND INDEX
     # PIC
-    pic = 151
+    pic = plot_idx
     example_comp = example[0][pic]
     example_raw = example[1][pic]
 
     if plot is True:
 
-        comp_re = np.reshape(example_comp, (1, 71))
-        #comp_re = np.reshape(example_comp, (1, 1, 71))
+        #comp_re = np.reshape(example_comp, (1, 71))
+        comp_re = np.reshape(example_comp, (1, 1, 71))
         predicted = model.predict(comp_re)
         predicted = predicted.reshape((71,1))
         plt.figure()
         plt.title('Compressed...')
         plt.plot(np.reshape(example_comp, (71, 1)))
         if save is True:
-            plt.savefig(f"../img/compressed_example.png")
-            #plt.savefig(f"../img/compressed_example{which_num}.png")
+            plt.savefig(f"../img/compressed_example_{pic}.png")
         plt.figure()
         plt.title('Recon...')
         plt.plot(predicted)
         if save is True:
-            plt.savefig(f"../img/reconstructed_example.png")
-            #plt.savefig(f"../img/reconstructed_{which_num}.png")
+            plt.savefig(f"../img/reconstructed_example_{pic}.png")
         plt.figure()
         plt.title('Raw...')
         plt.plot(np.reshape(example_raw, (71,1)))
-        #plt.plot(raw_arr_norm_backup[which_num])
         if save is True:
-            plt.savefig(f"../img/actual_example.png")
-            #plt.savefig(f"../img/actual_{which_num}.png")
+            plt.savefig(f"../img/actual_example_{pic}.png")
         if show is True:
             plt.show()
 
 if __name__=="__main__":
     train(
-        remake=True,
-        use_chk=False, 
-        plot=True, 
-        show=True,
-        save=False,
-        plot_idx=25016)
-
-
-
-    #     inputs = keras.Input(shape=(example_length, ), name="in")
-    #     x = layers.Dense(2000, activation="relu", name="dense_1")(inputs)
-    #     #x = layers.Conv1D(filters=50, kernel_size=5, strides=1, padding='same', activation='relu' ,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
-    #  #   x = layers.Conv1D(filters=50, kernel_size=5, strides=2, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(x)
-    #   #  x = layers.Dense(1000, activation="relu", name="dense_1")(inputs)
-    #   #  x = layers.BatchNormalization(name="batch_norm_1")(x)
-    #     x = layers.Dense(2000, activation="relu", name="dense_2")(x)
-    #   #  x = layers.BatchNormalization(name="batch_norm_1")(x)
-    #     x = layers.Dense(2000, activation="relu", name="dense_3")(x)
-    #     x = layers.Dense(2000, activation="relu", name="dense_4")(x)
-    #    # x = layers.Dense(1000, activation="relu", kernel_regularizer=keras.regularizers.l2(0.002), name="dense_4")(x)
-    #   #  x = layers.BatchNormalization(name="batch_norm_2")(x)
-    #     x = layers.Dense(2000, activation="relu", name="dense_5")(x)
-    #     #x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None,data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
-    # #    x = layers.Conv1D(filters=1, kernel_size=3, strides=1, padding='same', activation=None, data_format='channels_first', kernel_initializer='glorot_uniform')(x)
-    #     #outputs = layers.Dense(example_length, activation="tanh", name="out")(x)
+        remake=False, # Create new npz
+        use_chk=False, # Use checkpointed model (don't train again)
+        plot=True, # plot the figures at the end
+        show=True, # show any plots
+        save=False, # save the images
+        epochs=10,
+        plot_idx=150 # which item to plot
+    ) 
 
