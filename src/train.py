@@ -16,6 +16,8 @@ from tensorflow.keras import layers
 from pathlib import Path
 import math
 import random
+import time
+from decimal import *
 
 def filter_data_files(item):
     if "Compressed" not in item:
@@ -24,6 +26,14 @@ def filter_data_files(item):
         return False
         
 tf.executing_eagerly()
+
+def truncate(f, n):
+    '''Truncates/pads a float f to n decimal places without rounding'''
+    s = '{}'.format(f)
+    if 'e' in s or 'E' in s:
+        return '{0:.{1}f}'.format(f, n)
+    i, p, d = s.partition('.')
+    return '.'.join([i, (d+'0'*n)[:n]])
 
 def create_test_set(raw_path, comp_path, ignore_list, array_path):
     # Put the spikes and electrode number in here...
@@ -456,25 +466,34 @@ def train(remake=False, use_chk=False, make_test=False, plot=False, show=False, 
         arr_comp = total_file['arr_0']
         spikes = arr_comp.shape[0]
         new_arr = np.copy(arr_comp)
-        print(f"This many spikes...{spikes}")
-        #for i in range(spikes):
-        #    if(i % 1000) == 0:
-        #        print(f"progress...{i}")
-            #comp_re = np.reshape(arr_comp[i][2:], (1, 1, 71))
+        print(f"This many spikes...{arr_comp.shape}")
         spike_arr = arr_comp[:,2:]
         spike_arr = spike_arr[:, None ,:]
+        t = time.time()
+        # do stuff
         predicted = model.predict(spike_arr, verbose=0)
+        elapsed = time.time() - t
+        print(f"Elapsed time for predictions: {elapsed}")
         predicted = predicted.reshape((spikes, 71))
-        new_arr[:, 2:] = predicted
+        predicted = ((predicted*1000).astype(int))/1000
+        new_arr[:, 2:] = predicted #np.round(predicted, decimals=2)
         print("Made it...")
-            # plt.figure()
-            # plt.title(f'{i}_Compressed...')
-            # plt.plot(np.reshape(arr_comp[i][2:], (71, 1)))
-            # plt.figure()
-            # plt.title(f'{i}_Recon...')
-            # plt.plot(predicted)
-            # plt.show()
+
         np.savez_compressed("final_testing_spikes.npz", new_arr)
+        final = np.load("final_testing_spikes.npz")
+        final_arr = final['arr_0']
+        #final_arr = ((final_arr*1000).astype(int))/1000
+        pic = 0
+        print(final_arr[pic, 2:])
+        print(f"Shape...{final_arr.shape}")
+
+        plt.figure()
+        plt.title(f'Compressed...')
+        plt.plot(np.reshape(arr_comp[pic, 2:], (71, 1)))
+        plt.figure()
+        plt.title(f'Recon...')
+        plt.plot(np.reshape(final_arr[pic, 2:], (71, 1)))
+        plt.show()
 
 if __name__=="__main__":
     train(
