@@ -25,6 +25,128 @@ def filter_data_files(item):
         
 tf.executing_eagerly()
 
+def create_test_set(raw_path, comp_path, ignore_list, array_path):
+    # Put the spikes and electrode number in here...
+    comp_list = []
+
+    final_set = 0
+    file_num = 1
+    zzz = 0
+
+    check_num = 0
+
+    subfolders = [f.path for f in os.scandir(raw_path) if f.is_dir()]   
+    #print(str(subfolders))
+    for qqq in range(len(subfolders)):
+        print(f"FOLDER: {qqq}")
+        data_files = os.listdir(subfolders[qqq]) 
+        subfiles = os.listdir(subfolders[qqq])
+        subfiles_filtered = filter(filter_data_files, subfiles)
+        for p in subfiles_filtered:
+
+            full_path = os.path.join(subfolders[qqq], p)
+            compressed_tokens = full_path.split("data000")
+            electrode_num = int(compressed_tokens[1].split("_")[2])
+            if(electrode_num in ignore_list):
+                print(f"ignoring electrode: {electrode_num}")
+                continue
+
+            compressed_path = compressed_tokens[0] + "data000Compressed" + compressed_tokens[1]
+            compressed_path = compressed_path.replace("spikes", "spike", 1) # Small file naming error
+            starting = int(compressed_tokens[1].split("_")[8].split(".")[0].split("m")[0])
+
+            if (starting != 20) and (starting != 25):
+                continue
+            #print(f"starting_minute is {starting}, electrode is {electrode_num}")
+            #continue
+
+
+            if os.path.exists(compressed_path):
+                print(f"File number: {file_num}")
+                file_num = file_num + 1
+                comp_inputs = loadmat(compressed_path)
+                comp_arr = comp_inputs["spikeArr"]
+                comp_input_np = np.asarray(comp_arr).T
+
+                if(len(comp_input_np.shape) > 1):
+                    comp_input_collapsed = np.zeros((comp_input_np.shape[0], comp_input_np.shape[1]+1))
+
+                    jj = 0
+                    for ii in range(comp_input_np.shape[0]):
+                        if (comp_input_np[ii][0] != 0): 
+
+                            spike_num = comp_input_np[ii][0]
+                            comp_input_collapsed[jj][0] = electrode_num
+                            comp_input_collapsed[jj][1] = spike_num
+                            comp_input_collapsed[jj][2:] = comp_input_np[ii][1:]
+                            #print(f"Spike num = {spike_num}, electrode = {electrode_num}, spike is {comp_input_np[ii][1:]}")
+                            jj = jj + 1
+
+    
+                    comp_input_collapsed = comp_input_collapsed[0:jj, :]
+                    comp_list.append(comp_input_collapsed)
+
+                    if(len(comp_list) == 100):
+                        len_sum = 0
+                        lens = []
+
+                        for i in range(len(comp_list)):
+                            temp_len = comp_list[i].shape[0]
+                            #print(f"LEN {i} : {temp_len}")
+                            len_sum = len_sum + temp_len
+                            lens.append(temp_len)
+
+                        final_np_comp = np.zeros((len_sum, 73))
+
+                        tracker = 0
+                        for i in range(len(comp_list)):
+                            if(lens[i] == 0):
+                                continue
+
+                            final_np_comp[tracker:tracker+lens[i], :] = comp_list[i]
+                            tracker = tracker + lens[i]
+
+                        if(os.path.exists(array_path + f"_{check_num}.npz")):
+                            print("Don't need to remake this file...")
+                        else:
+                            # first array is the raw, second is the compressed
+                            np.savez_compressed(array_path + f"_{check_num}.npz", final_np_comp)
+
+                        check_num = check_num + 1
+                        comp_list = []
+                        return 
+                else:
+                    print("Skipping for other reasons...")
+    # One last one
+    if(len(comp_list) > 0):
+        len_sum = 0
+        lens = []
+
+        for i in range(len(comp_list)):
+            temp_len = comp_list[i].shape[0]
+            #print(f"LEN {i} : {temp_len}")
+            len_sum = len_sum + temp_len
+            lens.append(temp_len)
+
+        final_np_comp = np.zeros((len_sum, 73))
+
+        tracker = 0
+        for i in range(len(comp_list)):
+            if(lens[i] == 0):
+                continue
+
+            final_np_comp[tracker:tracker+lens[i], :] = comp_list[i]
+            tracker = tracker + lens[i]
+
+        if(os.path.exists(array_path + f"_{check_num}_test.npz")):
+            print("Don't need to remake this file...")
+        else:
+            # first array is the raw, second is the compressed
+            np.savez_compressed(array_path + f"_{check_num}_test.npz", final_np_comp)
+
+
+
+
 def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_path):
     print_now = 1
     # Put the spikes and electrode number in here...
@@ -71,7 +193,7 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
 
                     jj = 0
                     for ii in range(raw_input_np.shape[0]):
-                        if (raw_input_np[ii][0] != 0 and (np.ptp(comp_input_np[ii, 1:]) > 2)): # and (np.sum(comp_input_np[ii, 1:] == 0) > 60):
+                        if (raw_input_np[ii][0] != 0): # and (np.ptp(comp_input_np[ii, 1:]) > 2)): # and (np.sum(comp_input_np[ii, 1:] == 0) > 60):
                             raw_input_collapsed[jj] = raw_input_np[ii][1:]
                             comp_input_collapsed[jj] = comp_input_np[ii][1:]
                             jj = jj + 1
@@ -151,7 +273,7 @@ def parse_proto(example_proto):
     raw_arr_norm = raw_arr_norm[None, :]
     return comp_arr, raw_arr_norm
 
-def train(remake=False, use_chk=False, plot=False, show=False, save=False, epochs=1, plot_idx=0):
+def train(remake=False, use_chk=False, make_test=False, plot=False, show=False, save=False, epochs=1, plot_idx=0):
 
     raw_path = Path("C:/Users/Mek/DATA_TAR") 
     comp_path = Path("C:/Users/Mek/DATA_TAR")
@@ -222,16 +344,20 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, epoch
         inputs = keras.Input(shape=(1, example_length, ), name="in")
         #inputs = keras.Input(shape=(example_length, ), name="in")
         #x = layers.Dense(2000, activation="relu", name="dense_1")(inputs)
-        x = layers.Conv1D(filters=50, kernel_size=5, strides=1, padding='same', activation='relu', 
+        x = layers.Conv1D(filters=32, kernel_size=5, strides=1, padding='valid', activation='relu', 
                 data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
         x = keras.layers.MaxPooling1D(pool_size=2, strides=2, padding='valid')(x)
-        x = layers.Conv1D(filters=50, kernel_size=3, strides=2, padding='same', activation='relu', data_format='channels_first', 
+        x = layers.Conv1D(filters=64, kernel_size=5, strides=1, padding='valid', activation='relu', data_format='channels_first', 
                 use_bias=True, kernel_initializer='glorot_uniform')(x)
+        x = keras.layers.MaxPooling1D(pool_size=2, strides=2, padding='valid')(x)
+
+        x = layers.Conv1D(filters=96, kernel_size=3, strides=1, padding='valid', activation='relu', data_format='channels_first', 
+            use_bias=True, kernel_initializer='glorot_uniform')(x)
         x = keras.layers.MaxPooling1D(pool_size=2, strides=2, padding='valid')(x)
       #  x = layers.Dense(1000, activation="relu", name="dense_1")(inputs)
       #  x = layers.BatchNormalization(name="batch_norm_1")(x)
-        x = layers.Dense(2000, activation="relu", name="dense_2")(x)
-        x = layers.BatchNormalization(name="batch_norm_1")(x)
+        #x = layers.Dense(2000, activation="relu", name="dense_2")(x)
+        #x = layers.BatchNormalization(name="batch_norm_1")(x)
         x = layers.Dense(2000, activation="relu", name="dense_4")(x)
        # x = layers.Dense(1000, activation="relu", kernel_regularizer=keras.regularizers.l2(0.002), name="dense_4")(x)
         #x = layers.BatchNormalization(name="batch_norm_2")(x)
@@ -290,6 +416,7 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, epoch
     example = next(newds_iter)
     #### PUMIAO + ANDREW - CHANGE THE SECOND INDEX
     # PIC
+
     pic = plot_idx
     example_comp = example[0][pic]
     example_raw = example[1][pic]
@@ -318,12 +445,44 @@ def train(remake=False, use_chk=False, plot=False, show=False, save=False, epoch
         if show is True:
             plt.show()
 
+    #test_data = True
+    test_data = False
+
+    if make_test is True:
+        if test_data is True:
+            create_test_set(raw_path, comp_path, ignore_list, './test_set')
+
+        total_file = np.load(f"test_set_0.npz")
+        arr_comp = total_file['arr_0']
+        spikes = arr_comp.shape[0]
+        new_arr = np.copy(arr_comp)
+        print(f"This many spikes...{spikes}")
+        #for i in range(spikes):
+        #    if(i % 1000) == 0:
+        #        print(f"progress...{i}")
+            #comp_re = np.reshape(arr_comp[i][2:], (1, 1, 71))
+        spike_arr = arr_comp[:,2:]
+        spike_arr = spike_arr[:, None ,:]
+        predicted = model.predict(spike_arr, verbose=0)
+        predicted = predicted.reshape((spikes, 71))
+        new_arr[:, 2:] = predicted
+        print("Made it...")
+            # plt.figure()
+            # plt.title(f'{i}_Compressed...')
+            # plt.plot(np.reshape(arr_comp[i][2:], (71, 1)))
+            # plt.figure()
+            # plt.title(f'{i}_Recon...')
+            # plt.plot(predicted)
+            # plt.show()
+        np.savez_compressed("final_testing_spikes.npz", new_arr)
+
 if __name__=="__main__":
     train(
         remake=False, # Create new npz
-        use_chk=False, # Use checkpointed model (don't train again)
-        plot=True, # plot the figures at the end
-        show=True, # show any plots
+        use_chk=True, # Use checkpointed model (don't train again)
+        make_test=True,
+        plot=False, # plot the figures at the end
+        show=False, # show any plots
         save=False, # save the images
         epochs=10,
         plot_idx=150 # which item to plot
