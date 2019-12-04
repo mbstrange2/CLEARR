@@ -326,7 +326,7 @@ def train(remake=False, use_chk=False, make_test=False, plot=False, show=False, 
     # Shuffle the files to prevent grouping
     #random.shuffle(file_idx)
 
-    file_idx = [0] #[54, 10, 32]
+    file_idx = [18] #[54, 10, 32]
 
     final_files = []
     total_size = 0
@@ -499,11 +499,11 @@ if __name__=="__main__":
     train(
         remake=False, # Create new npz
         use_chk=True, # Use checkpointed model (don't train again)
-        make_test=True,
-        plot=False, # plot the figures at the end
-        show=False, # show any plots
+        make_test=False,
+        plot=True, # plot the figures at the end
+        show=True, # show any plots
         save=False, # save the images
         epochs=10,
-        plot_idx=150 # which item to plot
+        plot_idx=123 # which item to plot
     ) 
 
