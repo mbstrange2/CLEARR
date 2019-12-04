@@ -134,7 +134,8 @@ def create_inputs(comp_arr, raw_arr):     #tensorflow forces tf_map function to 
 
 def model_create(example_length):
         inputs = keras.Input(shape=(example_length,1), name="in")
-        x = layers.Conv1D(filters=64, kernel_size=5, strides=1, padding='same', activation='relu' ,data_format='channels_last', use_bias=True, kernel_initializer='glorot_uniform', name="conv_1")(inputs)
+        x = layers.Conv1D(filters=64, kernel_size=16, strides=1, padding='same', activation='relu' ,data_format='channels_last', use_bias=True, kernel_initializer='glorot_uniform', name="conv_1")(inputs)
+        x = layers.Bidirectional(layers.GRU(units=64, activation='tanh', recurrent_activation='tanh', kernel_initializer='glorot_uniform', return_sequences=True, name='biGRU_1'), merge_mode='ave')(x)
         x = layers.Dense(1024, activation="relu", name="dense_2")(x)
         x = layers.BatchNormalization(name="batch_norm_1")(x)
         x = layers.Dense(1024, activation="relu", name="dense_3")(x)
@@ -280,7 +281,7 @@ def train(use_chk=False, plot=False, show=False, save=False, plot_idx=0):
     val_iterator = newds.take(65536).__iter__()
     train_iterator = newds.skip(65536).__iter__()
     newds = newds.map(parse_proto, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-    newds = newds.shuffle(buffer_size)
+    # newds = newds.shuffle(buffer_size)
     newds = newds.repeat()
     newds = newds.batch(batch_size, drop_remainder=True)
     # pdb.set_trace()
