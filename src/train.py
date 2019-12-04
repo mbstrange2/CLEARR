@@ -65,7 +65,7 @@ def create_test_set(raw_path, comp_path, ignore_list, array_path):
             compressed_path = compressed_path.replace("spikes", "spike", 1) # Small file naming error
             starting = int(compressed_tokens[1].split("_")[8].split(".")[0].split("m")[0])
 
-            if (starting != 20) and (starting != 25):
+            if (starting != 0) and (starting != 5):
                 continue
             #print(f"starting_minute is {starting}, electrode is {electrode_num}")
             #continue
@@ -124,7 +124,6 @@ def create_test_set(raw_path, comp_path, ignore_list, array_path):
 
                         check_num = check_num + 1
                         comp_list = []
-                        return 
                 else:
                     print("Skipping for other reasons...")
     # One last one
@@ -153,9 +152,6 @@ def create_test_set(raw_path, comp_path, ignore_list, array_path):
         else:
             # first array is the raw, second is the compressed
             np.savez_compressed(array_path + f"_{check_num}_test.npz", final_np_comp)
-
-
-
 
 def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_path):
     print_now = 1
@@ -187,6 +183,12 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
 
             compressed_path = compressed_tokens[0] + "data000Compressed" + compressed_tokens[1]
             compressed_path = compressed_path.replace("spikes", "spike", 1) # Small file naming error
+
+            starting = int(compressed_tokens[1].split("_")[8].split(".")[0].split("m")[0])
+
+            if (starting == 0) or (starting == 5):
+                continue
+
             if os.path.exists(compressed_path):
                 print(f"File number: {file_num}")
                 file_num = file_num + 1
@@ -245,13 +247,35 @@ def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_p
                         check_num = check_num + 1
                         raw_list = []
                         comp_list = []
-                else:
-                    print("Skipping for other reasons...")
 
-            else:
-                #print("Raw path exists, but compressed path doesn't: " + str(full_path))
-                xy = 1
-        #break
+    if(len(raw_list) > 0):
+        len_sum = 0
+        lens = []
+
+        for i in range(len(raw_list)):
+            temp_len = raw_list[i].shape[0]
+            len_sum = len_sum + temp_len
+            lens.append(temp_len)
+
+        final_np_raw = np.zeros((len_sum, 71))
+        final_np_comp = np.zeros((len_sum, 71))
+
+        tracker = 0
+        for i in range(len(raw_list)):
+            if(lens[i] == 0):
+                continue
+
+            final_np_raw[tracker:tracker+lens[i], :] = raw_list[i]
+            final_np_comp[tracker:tracker+lens[i], :] = comp_list[i]
+            tracker = tracker + lens[i]
+
+        if(os.path.exists(raw_array_path + f"_{check_num}.npz")):
+            print("Don't need to remake this file...")
+        else:
+            # first array is the raw, second is the compressed
+            np.savez_compressed(raw_array_path + f"_{check_num}.npz", (final_np_raw, final_np_comp))
+
+
 
 def array_to_tfrecords(comp, raw, output_file):
     with tf.io.TFRecordWriter(output_file, options="GZIP") as writer:
@@ -300,7 +324,7 @@ def train(remake=False, use_chk=False, make_test=False, plot=False, show=False, 
         print("NP array files already exist, proceeding as usual...")
 
     filenames = []
-    num_train = 30
+    num_train = 21
     # convert to TFRecord
     if os.path.exists("./file_sizes.npy") is False:
         print("Creating file array...")
@@ -403,7 +427,8 @@ def train(remake=False, use_chk=False, make_test=False, plot=False, show=False, 
         metrics=[keras.metrics.MeanSquaredError()])
 
 
-    STEPS_PER_EPOCH = math.floor(total_size / batch_size) - 1
+    #STEPS_PER_EPOCH = math.floor(total_size / batch_size) - 1
+    STEPS_PER_EPOCH = 256
 
     if training is True:
         checkpoint = keras.callbacks.ModelCheckpoint(checkpoint_filepath, monitor='loss', verbose=0, save_best_only=True, mode='min')
@@ -461,7 +486,6 @@ def train(remake=False, use_chk=False, make_test=False, plot=False, show=False, 
     if make_test is True:
         if test_data is True:
             create_test_set(raw_path, comp_path, ignore_list, './test_set')
-
         total_file = np.load(f"test_set_0.npz")
         arr_comp = total_file['arr_0']
         spikes = arr_comp.shape[0]
@@ -499,11 +523,11 @@ if __name__=="__main__":
     train(
         remake=False, # Create new npz
         use_chk=True, # Use checkpointed model (don't train again)
-        make_test=False,
+        make_test=True,
         plot=True, # plot the figures at the end
         show=True, # show any plots
         save=False, # save the images
-        epochs=10,
-        plot_idx=123 # which item to plot
+        epochs=2,
+        plot_idx=0 # which item to plot
     ) 
 
