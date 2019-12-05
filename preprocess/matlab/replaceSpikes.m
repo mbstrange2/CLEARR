@@ -183,5 +183,6 @@ for ArrayIndex=1:1:512
 end
 
 full_replaced=[outputPath '/data000_replaced.mat'];
-save(full_replaced, 'spikeArrReplaced', '-v7.3');
+save(full_replaced, 'newData', '-v7.3');
+
 
