@@ -1,14 +1,14 @@
-%clear all; clc; 
+clear all; clc; 
 %% Set paths -- this path is user dependent %
 % utilities, data and output paths are passed
 % Vision paths are defined in setPaths function
 
 % DATASET TO USE
-%dataSet = '2015-11-09-3/';
+dataSet = '2015-11-09-3/';
 % BASE TIME IN MINUTES
-%base_time_min = 20; % Make sure to update
+base_time_min = 0; % Make sure to update
 % TURN ON COMPRESSED DATA OR NOT
-%compressed_data = 1; % Set to 1 to use compressed
+compressed_data = 0; % Set to 1 to use compressed
 
 
 toppath = '/nobackupkiwi/mstrange/CS230/';
@@ -20,6 +20,9 @@ util = [toppath 'vision7-unix/'];
 spikePath= [toppath 'analysis/' dataSet 'data000/data000.spikes'];   
 setPaths(dataPath,outputPath,util);
 spikeFile=edu.ucsc.neurobiology.vision.io.SpikeFile(spikePath);
+
+
+%Tspike=spikeFile.getSpikeTimes(100);
 %% Set global parameter
 compressed_path = [toppath 'data/' dataSet 'mat/' 'data000_start_' num2str(base_time_min) 'm.csv'];
 if(compressed_data == 1)
@@ -27,7 +30,7 @@ if(compressed_data == 1)
 end
 
 fs = 20e3;
-Tmeas = 5*60;
+Tmeas = 10*60;
 nSamplesToRead = Tmeas*fs;   % how many samples to read
 startSample = base_time_min * 60 * fs;
 bufferSize = 100000; %1000000; % The number of samples to process at a time.
@@ -105,6 +108,7 @@ elseif(compressed_data == 0)
     %% uncomment line 84 and 85  to prepare file for pytorch to compress 
     save(outputFile, 'newData', '-v7.3');
     fprintf('Done creating output file\n');
+    exit;
 else
     % Import compressed data 
     fprintf('Using the compressed input...\n');
@@ -174,7 +178,7 @@ for ArrayIndex=1:1:512
     if(compressed_data == 1)
         len_comp = length(Compressed(:, ArrayIndex));
         data_row = Compressed(:, ArrayIndex);
-    else
+    else 
         len_comp = length(newData(:, ArrayIndex));
         data_row = newData(:, ArrayIndex);
     end
