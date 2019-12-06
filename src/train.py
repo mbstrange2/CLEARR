@@ -13,6 +13,7 @@ import scipy.signal as sig
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow import keras
+from tensorflow.keras.utils import plot_model
 from tensorflow.keras import layers
 from pathlib import Path
 import math
@@ -141,11 +142,11 @@ def create_test_set(raw_path, comp_path, ignore_list, array_path):
             final_np_comp[tracker:tracker+lens[i], :] = comp_list[i]
             tracker = tracker + lens[i]
 
-        if(os.path.exists(array_path + f"_{check_num}_test.npz")):
+        if(os.path.exists(array_path + f"_{check_num}.npz")):
             print("Don't need to remake this file...")
         else:
             # first array is the raw, second is the compressed
-            np.savez_compressed(array_path + f"_{check_num}_test.npz", final_np_comp)
+            np.savez_compressed(array_path + f"_{check_num}.npz", final_np_comp)
 
 
 def reformat_data(raw_path, comp_path, ignore_list, raw_array_path, comp_array_path):
@@ -315,8 +316,7 @@ def model_create(example_length):
         use_bias=True, kernel_initializer='glorot_uniform')(x)
     x = keras.layers.MaxPooling1D(pool_size=2, strides=2, padding='valid')(x)
     x = layers.Dense(2000, activation="relu", name="dense_4")(x)
-    # x = layers.Dense(1000, activation="relu", kernel_regularizer=keras.regularizers.l2(0.002), name="dense_4")(x)
-    x = layers.Dense(2000, activation="relu", name="dense_5")(x)
+    x = layers.Dense(1500, activation="relu", name="dense_5")(x)
     x = layers.Conv1D(filters=1, kernel_size=5, strides=1, padding='same', activation='relu', data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(x)
 
     outputs = layers.Dense(example_length, name="out")(x)
@@ -360,24 +360,20 @@ def train(remake=False, use_chk=False, make_test=False, plot=False, show=False, 
         print("File array already exists, loading...")
         size_arr = np.load("./file_sizes.npy")
 
-    num_use = 1
-    #file_idx = list(range(num_use))
-    # Shuffle the files to prevent grouping
-    #random.shuffle(file_idx)
-
-    file_idx = [0] #[54, 10, 32]
-
+    num_use = 20
+    file_idx = list(range(num_use)) #[0, 1] 
     final_files = []
-    total_size = 0
+    num_train_samples = 0
     for i in range(num_use):
         final_files.append(f"tf_records_{file_idx[i]}.tfrecordz")
         # Accumulate the number of examples in each file
-        total_size += int(size_arr[file_idx[i]])
+        num_train_samples += int(size_arr[file_idx[i]])
 
     print(f"Files for training: {final_files}")
-    print(f"TOTAL NUMBER OF EXAMPLES: {total_size}")
+    print(f"TOTAL NUMBER OF EXAMPLES: {num_train_samples}")
     # Create the model
     model = model_create(71)
+    plot_model(model, to_file="model_visualization.png")
 
     checkpoint_filepath = "./model_chk.hdf5"
     training = False
@@ -396,6 +392,9 @@ def train(remake=False, use_chk=False, make_test=False, plot=False, show=False, 
     batch_size = 512
     ####################################
 
+    #num_train_samples = 4000000
+
+
     newds = tf.compat.v2.data.TFRecordDataset(final_files, compression_type="GZIP", num_parallel_reads=16)
     buffer_size = 2000000
 
@@ -404,8 +403,6 @@ def train(remake=False, use_chk=False, make_test=False, plot=False, show=False, 
     newds = newds.repeat()
     newds = newds.batch(batch_size) #, drop_remainder=True)
     newds = newds.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-
-    num_train_samples = 400000
 
     train_set = newds.take(num_train_samples)
 
@@ -427,7 +424,7 @@ def train(remake=False, use_chk=False, make_test=False, plot=False, show=False, 
         # List of metrics to monitor
         metrics=[keras.metrics.MeanSquaredError()])
 
-    #STEPS_PER_EPOCH = math.floor(total_size / batch_size) - 1
+    print(model.summary())
     STEPS_PER_EPOCH = math.floor(num_train_samples / batch_size) - 1
 
     final_loss = -1
@@ -466,27 +463,27 @@ def train(remake=False, use_chk=False, make_test=False, plot=False, show=False, 
         plt.title('Compressed...')
         plt.plot(np.reshape(example_comp, (71, 1)))
         if save is True:
-            plt.savefig(f"../img/compressed_example_{pic}.png")
+            plt.savefig(f"./img/compressed_example_{pic}.png")
         plt.figure()
         plt.title('Recon...')
         plt.plot(predicted)
         if save is True:
-            plt.savefig(f"../img/reconstructed_example_{pic}.png")
+            plt.savefig(f"./img/reconstructed_example_{pic}.png")
         plt.figure()
         plt.title('Raw...')
         plt.plot(np.reshape(example_raw, (71,1)))
         if save is True:
-            plt.savefig(f"../img/actual_example_{pic}.png")
+            plt.savefig(f"./img/actual_example_{pic}.png")
         if show is True:
             plt.show()
 
     dev_loss = -1
+    dev_size = 0
     if val is True:
     # Evaluation on dev set
         num_use = 1
         file_idx = [20]
         dev_files = []
-        dev_size = 0
         for i in range(num_use):
             dev_files.append(f"tf_records_{file_idx[i]}.tfrecordz")
             # Accumulate the number of examples in each file
@@ -504,14 +501,16 @@ def train(remake=False, use_chk=False, make_test=False, plot=False, show=False, 
     ### Predict on all...
     print(f"Final Metrics: alpha={l_r}, beta_1={b_1}, beta_2={b_2}, batch_size={batch_size}, train_loss={final_loss}, dev_loss={dev_loss}, num_train_samples={num_train_samples}, dev_samples={dev_size}, epochs={epochs}")
 
+    #test_data = True
     test_data = False
-    #test_data = False
 
     if make_test is True:
         if test_data is True:
             create_test_set(raw_path, comp_path, ignore_list, './test_set')
 
         for i in range(11):
+            if(os.path.exists(f"final_testing_spikes_{i}.mat")):
+                continue
             total_file = np.load(f"test_set_{i}.npz")
             arr_comp = total_file['arr_0']
             spikes = arr_comp.shape[0]
@@ -528,32 +527,16 @@ def train(remake=False, use_chk=False, make_test=False, plot=False, show=False, 
             predicted = ((predicted*1000).astype(int))/1000
             new_arr[:, 2:] = predicted #np.round(predicted, decimals=2)
             savemat(f"final_testing_spikes_{i}.mat", {'spikeRep': new_arr})
-            return
-            #np.savez_compressed(f"final_testing_spikes_{i}.npz", new_arr)
-
-        final = np.load("final_testing_spikes_0.npz")
-        final_arr = final['arr_0']
-        pic = 0
-        print(final_arr[pic, 2:])
-        print(f"Shape...{final_arr.shape}")
-
-        plt.figure()
-        plt.title(f'Compressed...')
-        plt.plot(np.reshape(arr_comp[pic, 2:], (71, 1)))
-        plt.figure()
-        plt.title(f'Recon...')
-        plt.plot(np.reshape(final_arr[pic, 2:], (71, 1)))
-        plt.show()
 
 if __name__=="__main__":
     train(
         remake=False, # Create new npz
-        use_chk=False, # Use checkpointed model (don't train again)
-        make_test=False,
-        plot=False, # plot the figures at the end
-        show=False, # show any plots
-        save=False, # save the images
+        use_chk=True, # Use checkpointed model (don't train again)
+        make_test=True,
+        plot=True, # plot the figures at the end
+        show=True, # show any plots
+        save=True, # save the images
         epochs=5,
         plot_idx=0, # which item to plot
-        val=True
+        val=False
     ) 
