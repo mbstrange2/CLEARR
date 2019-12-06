@@ -73,7 +73,8 @@ class io_object:
 
             # Extract first trigger delay time and duration to be written in header:
             trig_times = np.where(self.raw_data_batch[0,:]<0)[0]
-            self.first_trig_delay = trig_times[0]/self.fs # In seconds; Found Emperically
+            #self.first_trig_delay = trig_times[0]/self.fs # In seconds; Found Emperically
+            self.first_trig_delay = .002#trig_times[0]/self.fs # In seconds; Found Emperically
             self.first_trig_interval = 1 # In samples
             for trig_ind in range(len(trig_times)-1):
                 if trig_times[trig_ind+1] - trig_times[trig_ind] == 1:
@@ -213,7 +214,7 @@ class io_object:
             print('Directory did not exist. Making a new one...')
             os.makedirs(self.save_path)
                         
-        mat_file_path = os.path.join(self.save_path + '/' + self.mat_filename)
+        mat_file_path = self.save_path / self.mat_filename #os.path.join(self.save_path + '/' + self.mat_filename)
         
         # Check in the initial batch if the path exists (note: write_header is true only for 0th batch, check read_batch method)
         """if self.write_header == True and os.path.exists(mat_file_path):
