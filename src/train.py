@@ -80,7 +80,7 @@ def create_test_set(raw_path, comp_path, ignore_list, array_path):
 
                     jj = 0
                     for ii in range(comp_input_np.shape[0]) :
-                        if (comp_input_np[ii][0] != 0) and (np.ptp(comp_input_np[ii, 1:]) > 0): 
+                        if (comp_input_np[ii][0] != 0): 
 
                             spike_num = comp_input_np[ii][0]
                             comp_input_collapsed[jj][0] = electrode_num
@@ -304,8 +304,6 @@ def model_create(example_length):
 
     # Model P1
     inputs = keras.Input(shape=(1, example_length, ), name="in")
-    #inputs = keras.Input(shape=(example_length, ), name="in")
-    #x = layers.Dense(2000, activation="relu", name="dense_1")(inputs)
     x = layers.Conv1D(filters=32, kernel_size=5, strides=1, padding='valid', activation='relu', 
             data_format='channels_first', use_bias=True, kernel_initializer='glorot_uniform')(inputs)
     x = keras.layers.MaxPooling1D(pool_size=2, strides=2, padding='valid')(x)
@@ -373,7 +371,7 @@ def train(remake=False, use_chk=False, make_test=False, plot=False, show=False, 
     print(f"TOTAL NUMBER OF EXAMPLES: {num_train_samples}")
     # Create the model
     model = model_create(71)
-    plot_model(model, to_file="model_visualization.png")
+    plot_model(model, to_file="model_visualization.png", show_shapes=True)
 
     checkpoint_filepath = "./model_chk.hdf5"
     training = False
@@ -392,8 +390,7 @@ def train(remake=False, use_chk=False, make_test=False, plot=False, show=False, 
     batch_size = 512
     ####################################
 
-    #num_train_samples = 4000000
-
+    #num_train_samples = 400000
 
     newds = tf.compat.v2.data.TFRecordDataset(final_files, compression_type="GZIP", num_parallel_reads=16)
     buffer_size = 2000000
@@ -501,8 +498,8 @@ def train(remake=False, use_chk=False, make_test=False, plot=False, show=False, 
     ### Predict on all...
     print(f"Final Metrics: alpha={l_r}, beta_1={b_1}, beta_2={b_2}, batch_size={batch_size}, train_loss={final_loss}, dev_loss={dev_loss}, num_train_samples={num_train_samples}, dev_samples={dev_size}, epochs={epochs}")
 
-    #test_data = True
-    test_data = False
+    test_data = True
+    #test_data = False
 
     if make_test is True:
         if test_data is True:
@@ -535,8 +532,8 @@ if __name__=="__main__":
         make_test=True,
         plot=True, # plot the figures at the end
         show=True, # show any plots
-        save=True, # save the images
+        save=False, # save the images
         epochs=5,
-        plot_idx=0, # which item to plot
+        plot_idx=400, # which item to plot
         val=False
     ) 
